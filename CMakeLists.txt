@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.15)
 
 project(Block)
 
+file(COPY shaders DESTINATION res)
+
 set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -lGL")
 
 include_directories(${PROJECT_SOURCE_DIR})
@@ -18,8 +20,6 @@ include_directories(${GL_INCLUDE_DIRS})
 file(GLOB SOURCES src/*.cpp)
 add_executable(mblock ${SOURCES})
 
-file(COPY shaders DESTINATION res)
-
 target_link_libraries(mblock ${SDL2_LIBRARIES})
 target_link_libraries(mblock ${GLEW_LIBRARIES})
 target_link_libraries(mblock ${OPENGL_gl_LIBRARY})
@@ -30,5 +30,5 @@ add_custom_command(
     TARGET mblock
     POST_BUILD
     COMMAND zip
-    ARGS -r block.zip mblock shaders
+    ARGS -r block.zip mblock res
 )
