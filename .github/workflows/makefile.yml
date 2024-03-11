@@ -15,7 +15,7 @@ jobs:
       with: 
         file: "shell.nix"
     - name: Build
-      run: cmake --build build
+      run: mkdir build && cmake --build build
     - name: Archive
       run: make artifact
     - uses: actions/upload-artifact@v4
