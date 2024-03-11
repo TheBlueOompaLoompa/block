@@ -1,6 +1,7 @@
 # Block
 **My OpenGL Minecraft clone in c++**
-To run
+
+To run:
 ```bash
 nix-shell
 make
