@@ -2,6 +2,7 @@
  * Store all the file's contents in memory, useful to pass shaders
  * source code to OpenGL.  Using SDL_RWops for Android asset support.
  */
+#include <GL/glew.h>
 #include <SDL2/SDL_rwops.h>
 #pragma once
 
@@ -49,4 +50,28 @@ void print_log(GLuint object) {
 	
 	cerr << log;
 	free(log);
+}
+
+GLuint create_shader(const char* filename, GLenum type) {
+	const GLchar* source = file_read(filename);
+	if (source == NULL) {
+		cerr << "Error opening " << filename << ": " << SDL_GetError() << endl;
+		return 0;
+	}
+	GLuint res = glCreateShader(type);
+
+	glShaderSource(res, 1, &source, NULL);
+	free((void*)source);
+	
+	glCompileShader(res);
+	GLint compile_ok = GL_FALSE;
+	glGetShaderiv(res, GL_COMPILE_STATUS, &compile_ok);
+	if (compile_ok == GL_FALSE) {
+		cerr << filename << ":";
+		print_log(res);
+		glDeleteShader(res);
+		return 0;
+	}
+	
+	return res;
 }

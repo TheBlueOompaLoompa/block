@@ -9,7 +9,7 @@ using namespace std;
 #include <SDL2/SDL.h>
 
 
-#include "../include/shader.h"
+#include "../include/shader.hpp"
 
 /* ADD GLOBAL VARIABLES HERE LATER */
 
@@ -20,26 +20,11 @@ GLint attribute_coord2d, attribute_v_color;
 
 bool init_resources() {
 	GLint compile_ok = GL_FALSE, link_ok = GL_FALSE;
+	
+	GLuint vs, fs;
 
-	GLuint vs = glCreateShader(GL_VERTEX_SHADER);
-	const char *vs_source = file_read("shaders/vs.glsl");
-	glShaderSource(vs, 1, &vs_source, NULL);
-	glCompileShader(vs);
-	glGetShaderiv(vs, GL_COMPILE_STATUS, &compile_ok);
-	if (!compile_ok) {
-		cerr << "Error in vertex shader" << endl;
-		return false;
-	}
-
-	GLuint fs = glCreateShader(GL_FRAGMENT_SHADER);
-	const char *fs_source = file_read("shaders/fs.glsl");
-	glShaderSource(fs, 1, &fs_source, NULL);
-	glCompileShader(fs);
-	glGetShaderiv(fs, GL_COMPILE_STATUS, &compile_ok);
-	if (!compile_ok) {
-		cerr << "Error in fragment shader" << endl;
-		return false;
-	}
+	if((vs = create_shader("res/shaders/triangle.vs.glsl", GL_VERTEX_SHADER)) == 0) return false;
+	if((fs = create_shader("res/shaders/triangle.fs.glsl", GL_FRAGMENT_SHADER)) == 0) return false;
 
 	program = glCreateProgram();
 	glAttachShader(program, vs);
