@@ -10,8 +10,6 @@ jobs:
     - uses: cachix/install-nix-action@v26
       with:
         nix_path: nixpkgs=channel:nixos-23.11
-    - name: use-nix-shell-action
-      uses: rrbutani/use-nix-shell-action@v1.1.0
     - run: nix-shell
     - run: mkdir build
     - name: Build
