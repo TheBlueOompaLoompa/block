@@ -12,8 +12,7 @@ jobs:
         nix_path: nixpkgs=channel:nixos-23.11
     - name: use-nix-shell-action
       uses: rrbutani/use-nix-shell-action@v1.1.0
-      with: 
-        file: "shell.nix"
+    - run: nix-shell
     - run: mkdir build
     - name: Build
       run: cmake --build build
