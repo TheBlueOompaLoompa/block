@@ -12,7 +12,7 @@ jobs:
         nix_path: nixpkgs=channel:nixos-23.11
     - run: mkdir build
     - name: CMake
-      run: nix-shell --run "cmake --build ./build"
+      run: nix-shell --run "cmake -S . -B ./build && cmake --build ./build"
     - name: Build
       run: nix-shell --run "cd build && make"
     - name: Archive
