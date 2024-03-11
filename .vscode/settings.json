@@ -1,0 +1,6 @@
+{
+    "nixEnvSelector.nixFile": "${workspaceFolder}/shell.nix",
+    "files.associations": {
+        "iostream": "cpp"
+    }
+}
