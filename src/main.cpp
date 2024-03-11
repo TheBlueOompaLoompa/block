@@ -10,6 +10,7 @@ using namespace std;
 
 
 #include "../include/shader.hpp"
+#include "../include/helper.hpp"
 
 /* ADD GLOBAL VARIABLES HERE LATER */
 
@@ -19,6 +20,15 @@ GLint attribute_coord2d, attribute_v_color;
 
 
 bool init_resources() {
+	GLfloat triangle_vertices[] = {
+	    0.0,  0.8,
+	   -0.8, -0.8,
+	    0.8, -0.8,
+	};
+	glGenBuffers(1, &vbo_triangle);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo_triangle);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(triangle_vertices), triangle_vertices, GL_STATIC_DRAW);
+
 	GLint compile_ok = GL_FALSE, link_ok = GL_FALSE;
 	
 	GLuint vs, fs;
@@ -48,23 +58,14 @@ bool init_resources() {
 
 void render(SDL_Window* window) {
 	/* Clear the background as white */
-	glClearColor(0.0, 0.0, 0.0, 0.0);
+	glClearColor(WHITE, 1.0);
 	glClear(GL_COLOR_BUFFER_BIT);
 
 	glUseProgram(program);
 	glEnableVertexAttribArray(attribute_coord2d);
-	GLfloat triangle_vertices[] = {
-	    0.0,  1.0,
-	   -1.0, -1.0,
-	    1.0, -1.0,
 
-
-		1.0, -1.0,
-		1.0,  1.0,
-		0.0,  1.0,
-		
-		
-	};
+	glBindBuffer(GL_ARRAY_BUFFER, vbo_triangle);
+	glEnableVertexAttribArray(attribute_coord2d);
 	/* Describe our vertices array to OpenGL (it can't guess its format automatically) */
 	glVertexAttribPointer(
 		attribute_coord2d, // attribute
@@ -72,8 +73,9 @@ void render(SDL_Window* window) {
 		GL_FLOAT,          // the type of each element
 		GL_FALSE,          // take our values as-is
 		0,                 // no extra data between each position
-		triangle_vertices  // pointer to the C array
-						  );
+		0                  // offset of first element
+	);
+
 	
 	/* Push each element in buffer_vertices to the vertex shader */
 	glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -84,9 +86,9 @@ void render(SDL_Window* window) {
 	SDL_GL_SwapWindow(window);
 }
 
-
 void free_resources() {
 	glDeleteProgram(program);
+	glDeleteBuffers(1, &vbo_triangle);
 }
 
 void mainLoop(SDL_Window* window) {
@@ -100,20 +102,27 @@ void mainLoop(SDL_Window* window) {
 	}
 }
 
-GLfloat triangle_vertices[] = {
-	0.0,  0.8,
-	-0.8, -0.8,
-	0.8, -0.8,
-};
-
 int main(int argc, char* argv[]) {
 	/* SDL-related initialising functions */
 	SDL_Init(SDL_INIT_VIDEO);
 	SDL_Window* window = SDL_CreateWindow("Block",
 		SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
 		640, 480,
-		SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL);
-	SDL_GL_CreateContext(window);
+		SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL | SDL_WINDOW_ALLOW_HIGHDPI);
+	if (window == NULL) {
+		cerr << "Error: can't create window: " << SDL_GetError() << endl;
+		return EXIT_FAILURE;
+	}
+	
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
+	//SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
+	//SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+	SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 1);
+
+	if (SDL_GL_CreateContext(window) == NULL) {
+		cerr << "Error: SDL_GL_CreateContext: " << SDL_GetError() << endl;
+		return EXIT_FAILURE;
+	}
 
 	/* Extension wrangler initialising */
 	GLenum glew_status = glewInit();
@@ -121,6 +130,16 @@ int main(int argc, char* argv[]) {
 		cerr << "Error: glewInit: " << glewGetErrorString(glew_status) << endl;
 		return EXIT_FAILURE;
 	}
+
+	if (!GLEW_VERSION_2_0) {
+		cerr << "Error: your graphic card does not support OpenGL 2.0" << endl;
+		return EXIT_FAILURE;
+	}
+
+	// Enable alpha
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
 
 	/* When all init functions run without errors,
 	   the program can initialise the resources */
