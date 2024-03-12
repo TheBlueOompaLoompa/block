@@ -4,7 +4,7 @@ project(Block)
 
 file(COPY shaders DESTINATION res)
 
-set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -lGL")
+set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -lGL -O2")
 
 include_directories(${PROJECT_SOURCE_DIR})
 
@@ -17,12 +17,13 @@ include_directories(${GLEW_INCLUDE_DIRS})
 find_package(OpenGL REQUIRED)
 include_directories(${GL_INCLUDE_DIRS})
 
+find_package(glm REQUIRED)
+include_directories(${GLM_INCLUDE_DIRS})
+
 file(GLOB SOURCES src/*.cpp)
 add_executable(mblock ${SOURCES})
 
-target_link_libraries(mblock ${SDL2_LIBRARIES})
-target_link_libraries(mblock ${GLEW_LIBRARIES})
-target_link_libraries(mblock ${OPENGL_gl_LIBRARY})
+target_link_libraries(mblock ${SDL2_LIBRARIES} ${GLEW_LIBRARIES} ${OPENGL_gl_LIBRARY} glm::glm)
 
 target_include_directories(mblock PUBLIC ${PROJECT_SOURCE_DIR}/include)
 

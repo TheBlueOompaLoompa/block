@@ -1,33 +1,48 @@
 /* Using standard C++ output libraries */
 #include <cstdlib>
 #include <iostream>
+#include <math.h>
 using namespace std;
 
-/* Use glew.h instead of gl.h to get all the GL prototypes declared */
 #include <GL/glew.h>
-/* Using SDL2 for the base window and OpenGL context init */
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
 #include <SDL2/SDL.h>
-
 
 #include "../include/shader.hpp"
 #include "../include/helper.hpp"
 
-/* ADD GLOBAL VARIABLES HERE LATER */
+struct attributes {
+	GLfloat coord3d[3];
+	GLfloat v_color[3];
+};
+
+struct attributes triangle_attributes[] = {
+    {{ 0.0,  0.8, 0.0}, {1.0, 1.0, 0.0}},
+    {{-0.8, -0.8, 0.0}, {0.0, 0.0, 1.0}},
+    {{ 0.8, -0.8, 0.0}, {1.0, 0.0, 0.0}}
+};
 
 GLuint program;
 GLuint vbo_triangle, vbo_triangle_colors;
-GLint attribute_coord2d, attribute_v_color;
-
+GLint attribute_coord3d, attribute_v_color;
+GLint uniform_fade;
+GLint uniform_m_transform;
 
 bool init_resources() {
-	GLfloat triangle_vertices[] = {
-	    0.0,  0.8,
-	   -0.8, -0.8,
-	    0.8, -0.8,
-	};
 	glGenBuffers(1, &vbo_triangle);
 	glBindBuffer(GL_ARRAY_BUFFER, vbo_triangle);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(triangle_vertices), triangle_vertices, GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(triangle_attributes), triangle_attributes, GL_STATIC_DRAW);
+
+	GLfloat triangle_colors[] = {
+		1.0, 1.0, 0.0,
+		0.0, 0.0, 1.0,
+		1.0, 0.0, 0.0,
+	};
+	glGenBuffers(1, &vbo_triangle_colors);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo_triangle_colors);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(triangle_colors), triangle_colors, GL_STATIC_DRAW);
 
 	GLint compile_ok = GL_FALSE, link_ok = GL_FALSE;
 	
@@ -45,12 +60,35 @@ bool init_resources() {
 		cerr << "Error in glLinkProgram" << endl;
 		return false;
 	}
-	const char* attribute_name = "coord2d";
-	attribute_coord2d = glGetAttribLocation(program, attribute_name);
-	if (attribute_coord2d == -1) {
+	const char* attribute_name = "coord3d";
+	attribute_coord3d = glGetAttribLocation(program, attribute_name);
+	if (attribute_coord3d == -1) {
 		cerr << "Could not bind attribute " << attribute_name << endl;
 		return false;
 	}
+
+	attribute_name = "v_color";
+	attribute_v_color = glGetAttribLocation(program, attribute_name);
+	if (attribute_v_color == -1) {
+		cerr << "Could not bind attribute " << attribute_name << endl;
+		return false;
+	}
+
+	const char* uniform_name;
+	uniform_name = "fade";
+	uniform_fade = glGetUniformLocation(program, uniform_name);
+	if (uniform_fade == -1) {
+		cerr << "Could not bind uniform " << uniform_name << endl;
+		return false;
+	}
+
+	uniform_name = "m_transform";
+	uniform_m_transform = glGetUniformLocation(program, uniform_name);
+	if (uniform_m_transform == -1) {
+		cerr << "Could not bind uniform " << uniform_name << endl;
+		return false;
+	}
+
 
 	return true;
 }
@@ -59,31 +97,55 @@ bool init_resources() {
 void render(SDL_Window* window) {
 	/* Clear the background as white */
 	glClearColor(WHITE, 1.0);
-	glClear(GL_COLOR_BUFFER_BIT);
+	glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
 
 	glUseProgram(program);
-	glEnableVertexAttribArray(attribute_coord2d);
-
+	glEnableVertexAttribArray(attribute_coord3d);
+	glEnableVertexAttribArray(attribute_v_color);
 	glBindBuffer(GL_ARRAY_BUFFER, vbo_triangle);
-	glEnableVertexAttribArray(attribute_coord2d);
-	/* Describe our vertices array to OpenGL (it can't guess its format automatically) */
 	glVertexAttribPointer(
-		attribute_coord2d, // attribute
-		2,                 // number of elements per vertex, here (x,y)
-		GL_FLOAT,          // the type of each element
-		GL_FALSE,          // take our values as-is
-		0,                 // no extra data between each position
-		0                  // offset of first element
+		attribute_coord3d,
+		3,
+		GL_FLOAT,
+		GL_FALSE,
+		sizeof(struct attributes),
+		0 // offset of the first element
+	);
+	glVertexAttribPointer(
+		attribute_v_color,
+		3,
+		GL_FLOAT,
+		GL_FALSE,
+		sizeof(struct attributes),
+		(GLvoid*) offsetof(struct attributes, v_color)
 	);
 
 	
 	/* Push each element in buffer_vertices to the vertex shader */
-	glDrawArrays(GL_TRIANGLES, 0, 6);
+	glDrawArrays(GL_TRIANGLES, 0, 3);
 	
-	glDisableVertexAttribArray(attribute_coord2d);
+	glDisableVertexAttribArray(attribute_coord3d);
+	glDisableVertexAttribArray(attribute_v_color);
 
 	/* Display the result */
 	SDL_GL_SwapWindow(window);
+}
+
+void logic() {
+	glUseProgram(program);
+	float fade = 1.0;//sinf(SDL_GetTicks()/1000.0* M_PI)/2.0+.5;
+
+	glUniform1f(uniform_fade, fade);
+
+	float move = 0.0;//sinf(SDL_GetTicks() / 1000.0 * (2*3.14) / 5); // -1<->+1 every 5 seconds
+	float angle = 90.0;//SDL_GetTicks() / 1000.0 * 45;  // 45° per second
+	glm::vec3 axis_z(0, 0, 1);
+	glm::mat4 m_transform = glm::translate(glm::mat4(1.0f), glm::vec3(move, 0.0, 0.0))
+		* glm::rotate(glm::mat4(1.0f), glm::radians(angle), axis_z);
+	
+	glUseProgram(program);
+	glUniformMatrix4fv(uniform_m_transform, 1, GL_FALSE, glm::value_ptr(m_transform));
+
 }
 
 void free_resources() {
@@ -113,6 +175,8 @@ int main(int argc, char* argv[]) {
 		cerr << "Error: can't create window: " << SDL_GetError() << endl;
 		return EXIT_FAILURE;
 	}
+
+	SDL_SetHint(SDL_HINT_RENDER_VSYNC, "1");
 	
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
 	//SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
@@ -136,7 +200,7 @@ int main(int argc, char* argv[]) {
 		return EXIT_FAILURE;
 	}
 
-	// Enable alpha
+	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
