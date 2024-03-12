@@ -11,6 +11,7 @@
       mesa
       SDL2
       SDL2_image
+      libtiff
       freetype
       glslang
       zip
