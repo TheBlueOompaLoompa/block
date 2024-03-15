@@ -13,6 +13,7 @@
       SDL2_image
       libtiff
       freetype
+      reactphysics3d
       glslang
       zip
       gdb

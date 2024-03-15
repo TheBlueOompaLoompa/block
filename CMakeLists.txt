@@ -2,9 +2,9 @@ cmake_minimum_required(VERSION 3.15)
 
 project(Block)
 
-file(COPY shaders DESTINATION res)
+file(COPY res DESTINATION .)
 
-set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -lGL -O2")
+set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -lGL -lSDL2_image -O2")
 
 INCLUDE(FindPkgConfig)
 
@@ -23,10 +23,13 @@ include_directories(${GL_INCLUDE_DIRS})
 find_package(glm REQUIRED)
 include_directories(${GLM_INCLUDE_DIRS})
 
+find_package ( ReactPhysics3D REQUIRED )
+include_directories(${REACT_})
+
 file(GLOB SOURCES src/*.cpp)
 add_executable(mblock ${SOURCES})
 
-target_link_libraries(mblock ${SDL2_LIBRARIES} ${GLEW_LIBRARIES} ${OPENGL_gl_LIBRARY} glm::glm)
+target_link_libraries(mblock ${SDL2_LIBRARIES} ${GLEW_LIBRARIES} ${OPENGL_gl_LIBRARY} glm::glm ReactPhysics3D::ReactPhysics3D)
 
 target_include_directories(mblock PUBLIC ${PROJECT_SOURCE_DIR}/include)
 
