@@ -1,6 +1,4 @@
-
 #version 330 core
-
 
 in float instance;
 

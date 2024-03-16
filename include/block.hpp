@@ -8,12 +8,10 @@ enum BlockType
     DIRT
 };
 
-class Block
-{
-public:
-    glm::vec3 pos = glm::vec3(0.0);
-    BlockType type;
+struct Block {
+    int32_t x = 0;
+    int32_t y = 0;
+    int32_t z = 0;
 
-    Block(BlockType p_type, glm::vec3 p_pos);
-    ~Block();
+    BlockType type = BlockType::AIR;
 };
