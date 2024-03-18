@@ -19,29 +19,41 @@ struct Chunk
     Block blocks[CHUNK_SIZE][CHUNK_SIZE][CHUNK_SIZE]; // XYZ
 
     GLuint vbo_vertices;
-    GLuint vbo_elements;
+    GLuint ibo_elements;
     GLuint vbo_texcoords;
 
     std::vector<Vertex> vertices;
+    std::vector<GLushort> indices;
 
     Chunk* adjacent_chunks[6]; // up down left right forward back
 
     void updateMesh()
     {
         for(int my = 0; my < CHUNK_SIZE; my++) {
-            for(int mz = 0; my < CHUNK_SIZE; my++) {
-                for(int mx = 0; my < CHUNK_SIZE; my++) {
+            for(int mz = 0; mz < CHUNK_SIZE; mz++) {
+                for(int mx = 0; mx < CHUNK_SIZE; mx++) {
                     if(blocks[mx][my][mz].type == BlockType::AIR) continue;
+                    printf("X: %i Y: %i Z: %i\n", mx, my, mz);
 
-                    generate_side(mx + 1, my, mz, V3FORWARD, V3UP, true);
-                    generate_side(mx, my, mz,     V3FORWARD, V3UP);
-                    generate_side(mx, my + 1, mz, V3);
-                    generate_side(mx, my, mz,     );
-                    generate_side(mx, my, mz + 1, );
-                    generate_side(mx, my, mz,     );
+                    generate_side(mx + 1, my, mz, V3FORWARD, V3UP,   true);
+                    generate_side(mx, my, mz,     V3FORWARD, V3UP        );
+                    generate_side(mx, my + 1, mz, V3FORWARD, V3RIGHT     );
+                    generate_side(mx, my, mz,     V3FORWARD, V3RIGHT     );
+                    generate_side(mx, my, mz + 1, V3RIGHT,   V3UP        );
+                    generate_side(mx, my, mz,     V3RIGHT,   V3UP        );
                 }
             }
         }
+
+        glDeleteBuffers(1, &vbo_vertices);
+        glGenBuffers(1, &vbo_vertices);
+	    glBindBuffer(GL_ARRAY_BUFFER, vbo_vertices);
+        glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(Vertex), vertices.data(), GL_STATIC_DRAW);
+
+        glDeleteBuffers(1, &ibo_elements);
+        glGenBuffers(1, &ibo_elements);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo_elements);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(GLushort), indices.data(), GL_STATIC_DRAW);
     }
 
     // Returns true if opaque block is at pos
@@ -83,10 +95,16 @@ struct Chunk
     {
         if(chk_block(sx, sy, sz)) return;
 
+        // Front
         vertices.push_back({ (float)sx, (float)sy, (float)sz, 0.0f, 0.0f });
         vertices.push_back({ (float)sx + right.x, (float)sy + right.y, (float)sz + right.z, 1.0f, 0.0f });
         vertices.push_back({ (float)sx + right.x + up.x, (float)sy + right.y + up.y, (float)sz + right.z + up.z, 1.0f, 1.0f });
         vertices.push_back({ (float)sx + up.x, (float)sy + up.y, (float)sz + up.z, 0.0f, 1.0f });
+
+        indices.push_back(vertices.size() - 3);
+        indices.push_back(vertices.size() - 2);
+        indices.push_back(vertices.size() - 1);
+        printf("Vertices: %li Indices: %li\n XYZ: %i %i %i\n", vertices.size(), indices.size(), sx, sy, sz);
     }
 };
 

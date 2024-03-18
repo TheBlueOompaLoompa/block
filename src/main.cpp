@@ -9,12 +9,13 @@ using namespace std;
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <SDL2/SDL.h>
-#include <SDL_image.h>
+#include <SDL2/SDL_image.h>
 #include <reactphysics3d/reactphysics3d.h>
+#include <vector>
 
 #include "../include/config.hpp"
 #include "../include/shader.hpp"
-#include "../include/model.hpp"
+#include "../include/chunk.hpp"
 #include "../include/helper.hpp"
 
 GLuint program;
@@ -26,6 +27,10 @@ GLuint attribute_coord3d, attribute_texcoord;
 GLint uniform_fade;
 GLint uniform_mvp;
 
+vector<Chunk> chunks;
+
+Chunk chunk;
+
 using namespace reactphysics3d;
 
 PhysicsCommon physicsCommon;
@@ -36,9 +41,17 @@ int screen_height = 720;
 
 bool init_resources()
 {
-	/*for(int i = 0; i < suzanne_vertices.size(); i++) {
-		
-	}*/
+	for(int y = 0; y < CHUNK_SIZE; y++) {
+		for(int z = 0; z < CHUNK_SIZE; z++) {
+			for(int x = 0; x < CHUNK_SIZE; x++) {
+				if(y == 0) {
+					chunk.blocks[x][y][z].type = BlockType::DIRT;
+				}else chunk.blocks[x][y][z].type = BlockType::AIR;
+			}
+		}
+	}
+
+	chunk.updateMesh();
 
 	GLfloat cube_vertices[] = {
 		// front
@@ -112,9 +125,9 @@ bool init_resources()
 	for (int i = 1; i < 6; i++)
 		memcpy(&cube_texcoords[i*4*2], &cube_texcoords[0], 2*4*sizeof(GLfloat));
 	
-	glGenBuffers(1, &vbo_cube_texcoords);
+	/*glGenBuffers(1, &vbo_cube_texcoords);
 	glBindBuffer(GL_ARRAY_BUFFER, vbo_cube_texcoords);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(cube_texcoords), cube_texcoords, GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(cube_texcoords), cube_texcoords, GL_STATIC_DRAW);*/
 
 	SDL_Surface* res_texture = IMG_Load("res/textures/texture.png");
 	if (res_texture == NULL) {
@@ -162,12 +175,12 @@ bool init_resources()
 		return false;
 	}
 
-	attribute_name = "texcoord";
+	/*attribute_name = "texcoord";
 	attribute_texcoord = glGetAttribLocation(program, attribute_name);
 	if (attribute_texcoord == -1) {
 		cerr << "Could not bind attribute " << attribute_name << endl;
 		return false;
-	}
+	}*/
 
 	const char* uniform_name;
 	uniform_name = "mvp";
@@ -227,9 +240,10 @@ void logic()
 	glm::vec3 axis_y(0, 1, 0);
 	//glm::mat4 anim = glm::rotate(glm::mat4(1.0f), glm::radians(angle), axis_y);
 	
-	glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(position.x, position.y, position.z));
+	glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(0, -10, 0));
 	glm::mat4 view = glm::translate(glm::mat4(1.0f), offset);
 	view *= glm::rotate(view, glm::radians(lookDir.y), glm::vec3(1.0, 0.0, 0.0));
+	view = glm::lookAt(offset + glm::vec3(0, 5, 0), glm::vec3(0, -10, 0), glm::vec3(0, 1, 0));
 	glm::mat4 projection = glm::perspective(45.0f, 1.0f*screen_width/screen_height, 0.1f, 300.0f);
 
 	glm::mat4 mvp = projection * view * model;
@@ -246,7 +260,7 @@ void render(SDL_Window* window) {
 
 	glUseProgram(program);
 	glEnableVertexAttribArray(attribute_coord3d);
-	glBindBuffer(GL_ARRAY_BUFFER, vbo_cube_vertices);
+	glBindBuffer(GL_ARRAY_BUFFER, chunk.vbo_vertices);
 	glVertexAttribPointer(
 		attribute_coord3d,
 		3,
@@ -260,7 +274,7 @@ void render(SDL_Window* window) {
 	glUniform1i(uniform_mytexture, /*GL_TEXTURE*/0);
 	glBindTexture(GL_TEXTURE_2D, texture_id);
 
-	glEnableVertexAttribArray(attribute_texcoord);
+	/*glEnableVertexAttribArray(attribute_texcoord);
 	glBindBuffer(GL_ARRAY_BUFFER, vbo_cube_texcoords);
 	glVertexAttribPointer(
 		attribute_texcoord, // attribute
@@ -269,13 +283,13 @@ void render(SDL_Window* window) {
 		GL_FALSE,           // take our values as-is
 		0,                  // no extra data between each position
 		0                   // offset of first element
-	);
+	);*/
 
 	
 	/* Push each element in buffer_vertices to the vertex shader */
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo_cube_elements);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, chunk.ibo_elements);
 	int size;  glGetBufferParameteriv(GL_ELEMENT_ARRAY_BUFFER, GL_BUFFER_SIZE, &size);
-	glDrawElementsInstanced(GL_TRIANGLES, size/sizeof(GLushort), GL_UNSIGNED_SHORT, 0, 5);
+	glDrawElements(GL_TRIANGLES, size/sizeof(GLushort), GL_UNSIGNED_SHORT, 0);
 
 	/* Display the result */
 	SDL_GL_SwapWindow(window);
@@ -294,7 +308,7 @@ void free_resources()
 	glDeleteProgram(program);
 	glDeleteTextures(1, &texture_id);
 	glDeleteBuffers(1, &vbo_cube_vertices);
-	glDeleteBuffers(1, &vbo_cube_texcoords);
+	//glDeleteBuffers(1, &vbo_cube_texcoords);
 	glDeleteBuffers(1, &ibo_cube_elements);
 }
 
@@ -375,10 +389,10 @@ int main(int argc, char* argv[])
 
 	SDL_SetHint(SDL_HINT_RENDER_VSYNC, "1");
 	
-	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
 	//SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
 	//SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-	SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 1);
+	//SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 1);
 
 	if (SDL_GL_CreateContext(window) == NULL)
 	{
