@@ -1,7 +1,7 @@
 #version 330 core
 
-attribute vec3 coord3d;
-uniform mat4 mvp;
+layout (location = 0) in vec3 coord3d;
+layout (location = 1) uniform mat4 mvp;
 
 //out float instance;
 

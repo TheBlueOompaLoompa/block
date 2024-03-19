@@ -36,18 +36,18 @@ struct Chunk
                     printf("X: %i Y: %i Z: %i\n", mx, my, mz);
 
                     generate_side(mx + 1, my, mz, V3FORWARD, V3UP,   true);
-                    generate_side(mx, my, mz,     V3FORWARD, V3UP        );
+                    generate_side(mx, my, mz,     V3FORWARD, V3UP,   true);
                     generate_side(mx, my + 1, mz, V3FORWARD, V3RIGHT     );
                     generate_side(mx, my, mz,     V3FORWARD, V3RIGHT     );
                     generate_side(mx, my, mz + 1, V3RIGHT,   V3UP        );
-                    generate_side(mx, my, mz,     V3RIGHT,   V3UP        );
+                    generate_side(mx, my, mz,     V3RIGHT,   V3UP,   true);
                 }
             }
         }
 
         glDeleteBuffers(1, &vbo_vertices);
         glGenBuffers(1, &vbo_vertices);
-	    glBindBuffer(GL_ARRAY_BUFFER, vbo_vertices);
+        glBindBuffer(GL_ARRAY_BUFFER, vbo_vertices);
         glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(Vertex), vertices.data(), GL_STATIC_DRAW);
 
         glDeleteBuffers(1, &ibo_elements);
@@ -96,15 +96,64 @@ struct Chunk
         if(chk_block(sx, sy, sz)) return;
 
         // Front
-        vertices.push_back({ (float)sx, (float)sy, (float)sz, 0.0f, 0.0f });
-        vertices.push_back({ (float)sx + right.x, (float)sy + right.y, (float)sz + right.z, 1.0f, 0.0f });
-        vertices.push_back({ (float)sx + right.x + up.x, (float)sy + right.y + up.y, (float)sz + right.z + up.z, 1.0f, 1.0f });
-        vertices.push_back({ (float)sx + up.x, (float)sy + up.y, (float)sz + up.z, 0.0f, 1.0f });
+        vertices.push_back({
+            x: (float)sx,
+            y: (float)sy,
+            z: (float)sz,
+            0.0f, 0.0f });
+        vertices.push_back({
+            x: (float)(sx + right.x),
+            y: (float)(sy + right.y),
+            z: (float)(sz + right.z),
+            1.0f, 0.0f });
+        vertices.push_back({
+            x: (float)(sx + right.x + up.x),
+            y: (float)(sy + right.y + up.y),
+            z: (float)(sz + right.z + up.z),
+            1.0f, 1.0f });
+        vertices.push_back({
+            x: (float)(sx + up.x),
+            y: (float)(sy + up.y),
+            z: (float)(sz + up.z),
+            0.0f, 1.0f });
 
-        indices.push_back(vertices.size() - 3);
-        indices.push_back(vertices.size() - 2);
-        indices.push_back(vertices.size() - 1);
-        printf("Vertices: %li Indices: %li\n XYZ: %i %i %i\n", vertices.size(), indices.size(), sx, sy, sz);
+        if(flip)
+        {
+            indices.push_back(vertices.size() - 4);
+            indices.push_back(vertices.size() - 3);
+            indices.push_back(vertices.size() - 1);
+
+            indices.push_back(vertices.size() - 1);
+            
+            indices.push_back(vertices.size() - 3);
+            indices.push_back(vertices.size() - 2);
+        }
+        else
+        {
+            indices.push_back(vertices.size() - 1);
+            indices.push_back(vertices.size() - 3);
+            indices.push_back(vertices.size() - 4);
+
+            indices.push_back(vertices.size() - 1);
+            indices.push_back(vertices.size() - 2);
+            indices.push_back(vertices.size() - 3);
+        }
+        
+
+        /*for(int i = 0; i < 6; i++) {
+            printf("%i ", indices[indices.size() - 6 + i]);
+        }*/
+
+        /*for(int i = 0; i < 4; i++) {
+            printf("%f %f %f\n", vertices[vertices.size() - 4 + i].x, vertices[vertices.size() - 4 + i].y, vertices[vertices.size() - 4 + i].z);
+        }
+
+        printf("Vertices: %li Indices: %li\n XYZ: %i %i %i\n", vertices.size(), indices.size(), sx, sy, sz);*/
+    }
+
+    void destroy() {
+        glDeleteBuffers(1, &vbo_vertices);
+        glDeleteBuffers(1, &ibo_elements);
     }
 };
 

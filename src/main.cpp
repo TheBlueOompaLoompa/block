@@ -21,8 +21,6 @@ using namespace std;
 GLuint program;
 GLuint texture_id, program_id;
 GLint uniform_mytexture;
-GLuint vbo_cube_vertices, vbo_cube_texcoords;
-GLuint ibo_cube_elements;
 GLuint attribute_coord3d, attribute_texcoord;
 GLint uniform_fade;
 GLint uniform_mvp;
@@ -44,7 +42,7 @@ bool init_resources()
 	for(int y = 0; y < CHUNK_SIZE; y++) {
 		for(int z = 0; z < CHUNK_SIZE; z++) {
 			for(int x = 0; x < CHUNK_SIZE; x++) {
-				if(y == 0) {
+				if((y == 0) || (x == 4 && y != 0)) {
 					chunk.blocks[x][y][z].type = BlockType::DIRT;
 				}else chunk.blocks[x][y][z].type = BlockType::AIR;
 			}
@@ -52,82 +50,6 @@ bool init_resources()
 	}
 
 	chunk.updateMesh();
-
-	GLfloat cube_vertices[] = {
-		// front
-		-1.0, -1.0,  1.0,
-		1.0, -1.0,  1.0,
-		1.0,  1.0,  1.0,
-		-1.0,  1.0,  1.0,
-		// top
-		-1.0,  1.0,  1.0,
-		1.0,  1.0,  1.0,
-		1.0,  1.0, -1.0,
-		-1.0,  1.0, -1.0,
-		// back
-		1.0, -1.0, -1.0,
-		-1.0, -1.0, -1.0,
-		-1.0,  1.0, -1.0,
-		1.0,  1.0, -1.0,
-		// bottom
-		-1.0, -1.0, -1.0,
-		1.0, -1.0, -1.0,
-		1.0, -1.0,  1.0,
-		-1.0, -1.0,  1.0,
-		// left
-		-1.0, -1.0, -1.0,
-		-1.0, -1.0,  1.0,
-		-1.0,  1.0,  1.0,
-		-1.0,  1.0, -1.0,
-		// right
-		1.0, -1.0,  1.0,
-		1.0, -1.0, -1.0,
-		1.0,  1.0, -1.0,
-		1.0,  1.0,  1.0,
-	};
-
-
-	glGenBuffers(1, &vbo_cube_vertices);
-	glBindBuffer(GL_ARRAY_BUFFER, vbo_cube_vertices);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(cube_vertices), cube_vertices, GL_STATIC_DRAW);
-
-	GLushort cube_elements[] = {
-		// front
-		0,  1,  2,
-		2,  3,  0,
-		// top
-		4,  5,  6,
-		6,  7,  4,
-		// back
-		8,  9, 10,
-		10, 11,  8,
-		// bottom
-		12, 13, 14,
-		14, 15, 12,
-		// left
-		16, 17, 18,
-		18, 19, 16,
-		// right
-		20, 21, 22,
-		22, 23, 20,
-	};
-	glGenBuffers(1, &ibo_cube_elements);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo_cube_elements);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(cube_elements), cube_elements, GL_STATIC_DRAW);
-
-	GLfloat cube_texcoords[2*4*6] = {
-		// front
-		0.0, 0.0,
-		1.0, 0.0,
-		1.0, 1.0,
-		0.0, 1.0,
-	};
-	for (int i = 1; i < 6; i++)
-		memcpy(&cube_texcoords[i*4*2], &cube_texcoords[0], 2*4*sizeof(GLfloat));
-	
-	/*glGenBuffers(1, &vbo_cube_texcoords);
-	glBindBuffer(GL_ARRAY_BUFFER, vbo_cube_texcoords);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(cube_texcoords), cube_texcoords, GL_STATIC_DRAW);*/
 
 	SDL_Surface* res_texture = IMG_Load("res/textures/texture.png");
 	if (res_texture == NULL) {
@@ -199,7 +121,7 @@ Quaternion orientation = Quaternion::identity();
 Transform c_transform(position, orientation); 
 RigidBody* body = world->createRigidBody(c_transform); 
 
-glm::vec3 offset;
+glm::vec3 offset = glm::vec3(0, 5, 0);
 glm::vec3 vel;
 glm::vec2 lookDir;
 
@@ -208,6 +130,9 @@ glm::mat4 cameraTransform = glm::mat4(1.0f);
 float last_time = 0;
 float dt = 0;
 bool m_left, m_right, m_up, m_down = false;
+
+#define ROT_SPEED 1000.0f
+#define CAM_DIST 15.0f
 
 void logic()
 {
@@ -232,6 +157,9 @@ void logic()
 
 	offset += vel * dt;
 
+	offset.x = cos(SDL_GetTicks() / ROT_SPEED) * CAM_DIST;
+	offset.z = sin(SDL_GetTicks() / ROT_SPEED) * CAM_DIST;
+
 	const Transform& transform = body->getTransform();
     const Vector3& position = transform.getPosition();
 	const Quaternion& orientation = transform.getOrientation();
@@ -240,7 +168,7 @@ void logic()
 	glm::vec3 axis_y(0, 1, 0);
 	//glm::mat4 anim = glm::rotate(glm::mat4(1.0f), glm::radians(angle), axis_y);
 	
-	glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(0, -10, 0));
+	glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(-8, -16, -8));
 	glm::mat4 view = glm::translate(glm::mat4(1.0f), offset);
 	view *= glm::rotate(view, glm::radians(lookDir.y), glm::vec3(1.0, 0.0, 0.0));
 	view = glm::lookAt(offset + glm::vec3(0, 5, 0), glm::vec3(0, -10, 0), glm::vec3(0, 1, 0));
@@ -266,7 +194,7 @@ void render(SDL_Window* window) {
 		3,
 		GL_FLOAT,
 		GL_FALSE,
-		0,
+		5 * sizeof(GLfloat),
 		0 // offset of the first element
 	);
 
@@ -275,14 +203,14 @@ void render(SDL_Window* window) {
 	glBindTexture(GL_TEXTURE_2D, texture_id);
 
 	/*glEnableVertexAttribArray(attribute_texcoord);
-	glBindBuffer(GL_ARRAY_BUFFER, vbo_cube_texcoords);
+	glBindBuffer(GL_ARRAY_BUFFER, chunk.vbo_texcoords);
 	glVertexAttribPointer(
 		attribute_texcoord, // attribute
 		2,                  // number of elements per vertex, here (x,y)
 		GL_FLOAT,           // the type of each element
 		GL_FALSE,           // take our values as-is
-		0,                  // no extra data between each position
-		0                   // offset of first element
+		5 * sizeof(GLfloat),                  // no extra data between each position
+		(GLvoid*) (3 * sizeof(GLfloat))                   // offset of first element
 	);*/
 
 	
@@ -307,9 +235,7 @@ void free_resources()
 {
 	glDeleteProgram(program);
 	glDeleteTextures(1, &texture_id);
-	glDeleteBuffers(1, &vbo_cube_vertices);
-	//glDeleteBuffers(1, &vbo_cube_texcoords);
-	glDeleteBuffers(1, &ibo_cube_elements);
+	chunk.destroy();
 }
 
 void check_input(SDL_Scancode code, bool val) {
@@ -327,6 +253,10 @@ void check_input(SDL_Scancode code, bool val) {
 			m_right = val;
 			break;
 		default: break;
+	}
+
+	if(!val) {
+		printf("%f %f\n", offset.x, offset.z);
 	}
 }
 
@@ -375,6 +305,8 @@ void mainLoop(SDL_Window* window)
 
 int main(int argc, char* argv[])
 {
+	printf("Start Block\n");
+
 	/* SDL-related initialising functions */
 	SDL_Init(SDL_INIT_VIDEO);
 	SDL_Window* window = SDL_CreateWindow("Block",
@@ -416,6 +348,7 @@ int main(int argc, char* argv[])
 
 	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_BLEND);
+	glEnable(GL_CULL_FACE);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
 
