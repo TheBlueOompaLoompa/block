@@ -3,51 +3,19 @@
  * source code to OpenGL.  Using SDL_RWops for Android asset support.
  */
 #include <GL/glew.h>
-#include "util.hpp"
 #pragma once
 
-void print_log(GLuint object) {
-	GLint log_length = 0;
-	if (glIsShader(object)) {
-		glGetShaderiv(object, GL_INFO_LOG_LENGTH, &log_length);
-	} else if (glIsProgram(object)) {
-		glGetProgramiv(object, GL_INFO_LOG_LENGTH, &log_length);
-	} else {
-		cerr << "printlog: Not a shader or a program" << endl;
-		return;
-	}
+class Shader {
 
-	char* log = (char*)malloc(log_length);
-	
-	if (glIsShader(object))
-		glGetShaderInfoLog(object, log_length, NULL, log);
-	else if (glIsProgram(object))
-		glGetProgramInfoLog(object, log_length, NULL, log);
-	
-	cerr << log;
-	free(log);
-}
+public:
+	GLuint program_id;
+	char* path;
 
-GLuint create_shader(const char* filename, GLenum type) {
-	const GLchar* source = file_read(filename);
-	if (source == NULL) {
-		cerr << "Error opening " << filename << ": " << SDL_GetError() << endl;
-		return 0;
-	}
-	GLuint res = glCreateShader(type);
+	// Fragment shader and vertex shader must have the same name, but end with .f.glsl and .v.glsl respectively
+	Shader(const char* name);
+	~Shader();
 
-	glShaderSource(res, 1, &source, NULL);
-	free((void*)source);
-	
-	glCompileShader(res);
-	GLint compile_ok = GL_FALSE;
-	glGetShaderiv(res, GL_COMPILE_STATUS, &compile_ok);
-	if (compile_ok == GL_FALSE) {
-		cerr << filename << ":";
-		print_log(res);
-		glDeleteShader(res);
-		return 0;
-	}
-	
-	return res;
-}
+	bool load();
+
+	bool success = true;
+};

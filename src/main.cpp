@@ -18,12 +18,14 @@ using namespace std;
 #include "../include/chunk.hpp"
 #include "../include/helper.hpp"
 
-GLuint program;
+//GLuint program;
 GLuint texture_id, program_id;
 GLint uniform_mytexture;
 GLuint attribute_coord3d, attribute_texcoord;
 GLint uniform_fade;
 GLint uniform_mvp;
+
+Shader shader = Shader("res/shaders/cube");
 
 vector<Chunk> chunks;
 
@@ -51,7 +53,7 @@ bool init_resources()
 
 	chunk.updateMesh();
 
-	SDL_Surface* res_texture = IMG_Load("res/textures/texture.png");
+	/*SDL_Surface* res_texture = IMG_Load("res/textures/texture.png");
 	if (res_texture == NULL) {
 		cerr << "IMG_Load: " << SDL_GetError() << endl;
 		return false;
@@ -68,11 +70,13 @@ bool init_resources()
 		GL_RGBA, // format
 		GL_UNSIGNED_BYTE, // type
 		res_texture->pixels);
-	SDL_FreeSurface(res_texture);
+	SDL_FreeSurface(res_texture);*/
 
+	if(!shader.load()) return false;
 
+	printf("\n%i\n", shader.program_id);
 
-	GLint link_ok = GL_FALSE;
+	/*GLint link_ok = GL_FALSE;
 	
 	GLuint vs, fs;
 
@@ -88,9 +92,9 @@ bool init_resources()
 	{
 		cerr << "Error in glLinkProgram" << endl;
 		return false;
-	}
+	}*/
 	const char* attribute_name = "coord3d";
-	attribute_coord3d = glGetAttribLocation(program, attribute_name);
+	attribute_coord3d = glGetAttribLocation(shader.program_id, attribute_name);
 	if (attribute_coord3d == -1)
 	{
 		cerr << "Could not bind attribute " << attribute_name << endl;
@@ -106,7 +110,7 @@ bool init_resources()
 
 	const char* uniform_name;
 	uniform_name = "mvp";
-	uniform_mvp = glGetUniformLocation(program, uniform_name);
+	uniform_mvp = glGetUniformLocation(shader.program_id, uniform_name);
 	if (uniform_fade == -1)
 	{
 		cerr << "Could not bind uniform " << uniform_name << endl;
@@ -176,7 +180,7 @@ void logic()
 
 	glm::mat4 mvp = projection * view * model;
 
-	glUseProgram(program);
+	glUseProgram(shader.program_id);
 	glUniformMatrix4fv(uniform_mvp, 1, GL_FALSE, glm::value_ptr(mvp));
 
 }
@@ -186,7 +190,7 @@ void render(SDL_Window* window) {
 	glClearColor(WHITE, 1.0);
 	glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
 
-	glUseProgram(program);
+	glUseProgram(shader.program_id);
 	glEnableVertexAttribArray(attribute_coord3d);
 	glBindBuffer(GL_ARRAY_BUFFER, chunk.vbo_vertices);
 	glVertexAttribPointer(
@@ -205,7 +209,7 @@ void render(SDL_Window* window) {
 	/*glEnableVertexAttribArray(attribute_texcoord);
 	glBindBuffer(GL_ARRAY_BUFFER, chunk.vbo_texcoords);
 	glVertexAttribPointer(
-		attribute_texcoord, // attribute
+		attribute_texcoord, // attribute layout number
 		2,                  // number of elements per vertex, here (x,y)
 		GL_FLOAT,           // the type of each element
 		GL_FALSE,           // take our values as-is
@@ -233,7 +237,6 @@ void onResize(int width, int height)
 
 void free_resources()
 {
-	glDeleteProgram(program);
 	glDeleteTextures(1, &texture_id);
 	chunk.destroy();
 }
@@ -322,7 +325,7 @@ int main(int argc, char* argv[])
 	SDL_SetHint(SDL_HINT_RENDER_VSYNC, "1");
 	
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-	//SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
 	//SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
 	//SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 1);
 
