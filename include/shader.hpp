@@ -13,7 +13,7 @@ void print_log(GLuint object) {
 	} else if (glIsProgram(object)) {
 		glGetProgramiv(object, GL_INFO_LOG_LENGTH, &log_length);
 	} else {
-		cerr << "printlog: Not a shader or a program" << endl;
+		std::cerr << "printlog: Not a shader or a program" << std::endl;
 		return;
 	}
 
@@ -24,14 +24,14 @@ void print_log(GLuint object) {
 	else if (glIsProgram(object))
 		glGetProgramInfoLog(object, log_length, NULL, log);
 	
-	cerr << log;
+	std::cerr << log;
 	free(log);
 }
 
 GLuint create_shader(const char* filename, GLenum type) {
 	const GLchar* source = file_read(filename);
 	if (source == NULL) {
-		cerr << "Error opening " << filename << ": " << SDL_GetError() << endl;
+		std::cerr << "Error opening " << filename << ": " << SDL_GetError() << std::endl;
 		return 0;
 	}
 	GLuint res = glCreateShader(type);
@@ -43,7 +43,7 @@ GLuint create_shader(const char* filename, GLenum type) {
 	GLint compile_ok = GL_FALSE;
 	glGetShaderiv(res, GL_COMPILE_STATUS, &compile_ok);
 	if (compile_ok == GL_FALSE) {
-		cerr << filename << ":";
+		std::cerr << filename << ":";
 		print_log(res);
 		glDeleteShader(res);
 		return 0;

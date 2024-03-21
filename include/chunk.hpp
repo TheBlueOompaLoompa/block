@@ -3,6 +3,7 @@
 #include <vector>
 #include <GL/glew.h>
 #include <glm/glm.hpp>
+#include <reactphysics3d/reactphysics3d.h>
 
 #include "block.hpp"
 #include "geometry.hpp"
@@ -17,6 +18,8 @@ struct Chunk
     int z = 0;
 
     Block blocks[CHUNK_SIZE][CHUNK_SIZE][CHUNK_SIZE]; // XYZ
+    rp3d::Collider* collider;
+    rp3d::RigidBody* body;
 
     GLuint vbo_vertices;
     GLuint ibo_elements;
@@ -27,22 +30,31 @@ struct Chunk
 
     Chunk* adjacent_chunks[6]; // up down left right forward back
 
-    void updateMesh()
+    void updateMesh(rp3d::PhysicsCommon* physicsCommon, rp3d::PhysicsWorld* world)
     {
         for(int my = 0; my < CHUNK_SIZE; my++) {
             for(int mz = 0; mz < CHUNK_SIZE; mz++) {
                 for(int mx = 0; mx < CHUNK_SIZE; mx++) {
                     if(blocks[mx][my][mz].type == BlockType::AIR) continue;
-                    printf("X: %i Y: %i Z: %i\n", mx, my, mz);
+                    //printf("\nX: %i Y: %i Z: %i\n", mx, my, mz);
 
-                    generate_side(mx + 1, my, mz, V3FORWARD, V3UP,   true);
-                    generate_side(mx, my, mz,     V3FORWARD, V3UP,   true);
-                    generate_side(mx, my + 1, mz, V3FORWARD, V3RIGHT     );
-                    generate_side(mx, my, mz,     V3FORWARD, V3RIGHT     );
-                    generate_side(mx, my, mz + 1, V3RIGHT,   V3UP        );
-                    generate_side(mx, my, mz,     V3RIGHT,   V3UP,   true);
+                    generate_side(mx, my + 1, mz, V3FORWARD, V3RIGHT,true        );  // TOP
+                    generate_side(mx, my, mz,     V3FORWARD, V3RIGHT,false, true );  // BOTTOM
+                    
+                    generate_side(mx + 1, my, mz, V3FORWARD, V3UP,   true,  true );  // RIGHT
+                    generate_side(mx, my, mz,     V3FORWARD, V3UP,   false, false); // LEFT
+
+                    generate_side(mx, my, mz + 1, V3RIGHT,   V3UP,   true,  false); // FRONT
+                    generate_side(mx, my, mz,     V3RIGHT,   V3UP,   false, true );  // BACK
                 }
             }
+        }
+
+        for(uint i = 0; i < vertices.size(); i++)
+        {
+            vertices[i].x += x * CHUNK_SIZE;
+            vertices[i].y += y * CHUNK_SIZE;
+            vertices[i].z += z * CHUNK_SIZE;
         }
 
         glDeleteBuffers(1, &vbo_vertices);
@@ -54,10 +66,29 @@ struct Chunk
         glGenBuffers(1, &ibo_elements);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo_elements);
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(GLushort), indices.data(), GL_STATIC_DRAW);
+
+        // Physics stuff
+        /*body = world->createRigidBody(rp3d::Transform());
+        body->setType(rp3d::BodyType::KINEMATIC);
+        body->setIsAllowedToSleep(true);
+
+        // TODO: Fix memory leak, THIS WILL LEAK 100%
+
+        rp3d::TriangleVertexArray* triangleArray =
+            new rp3d::TriangleVertexArray ( vertices.size(), &vertices[0], 5 * sizeof (float), indices.size()/3, &indices[0], sizeof ( GLushort ),
+                rp3d::TriangleVertexArray::VertexDataType::VERTEX_FLOAT_TYPE ,
+                rp3d::TriangleVertexArray::IndexDataType::INDEX_INTEGER_TYPE );
+
+        rp3d::TriangleMesh * triangleMesh = physicsCommon->createTriangleMesh();
+        triangleMesh->addSubpart(triangleArray);
+        rp3d::ConcaveMeshShape* shape = physicsCommon->createConcaveMeshShape(
+            triangleMesh
+        );*/
     }
 
     // Returns true if opaque block is at pos
-    bool chk_block(int ix, int iy, int iz) {
+    bool chk_block(int ix, int iy, int iz)
+    {
         if(ix > CHUNK_SIZE - 1)
         { // Left adjacent chunk
             if(adjacent_chunks[2] == nullptr) return false;
@@ -66,7 +97,7 @@ struct Chunk
         else if(ix < 0)
         { // Right
             if(adjacent_chunks[3] == nullptr) return false;
-            else return adjacent_chunks[3]->blocks[ix + CHUNK_SIZE][iy][iz].type != BlockType::AIR;
+            else return adjacent_chunks[3]->chk_block(ix + CHUNK_SIZE, iy, iz);
         }
         else if(iy > CHUNK_SIZE - 1)
         { // Above
@@ -91,9 +122,14 @@ struct Chunk
         else return blocks[ix][iy][iz].type != BlockType::AIR;
     }
 
-    void generate_side(int sx, int sy, int sz, glm::vec3 up, glm::vec3 right, bool flip = false)
+    void generate_side(int sx, int sy, int sz, glm::vec3 up, glm::vec3 right, bool chkFlip, bool flip = false)
     {
-        if(chk_block(sx, sy, sz)) return;
+        //if(sy > 15) printf("I TOLD U\n");
+        
+        glm::vec3 dir = glm::cross(up, right) * glm::vec3(chkFlip ? 0 : (flip ? -1 : 1));
+        //printf("\nSurface X: %i Y: %i Z: %i Checking: %f %f %f", sx, sy, sz, dir.x + sx, dir.y + sy, dir.z + sz);
+        if(chk_block(dir.x + sx, dir.y + sy, dir.z + sz)) return;
+        //printf(" Open");
 
         // Front
         vertices.push_back({
@@ -121,30 +157,29 @@ struct Chunk
         {
             indices.push_back(vertices.size() - 4);
             indices.push_back(vertices.size() - 3);
-            indices.push_back(vertices.size() - 1);
-
-            indices.push_back(vertices.size() - 1);
-            
-            indices.push_back(vertices.size() - 3);
             indices.push_back(vertices.size() - 2);
+
+            indices.push_back(vertices.size() - 4);
+            indices.push_back(vertices.size() - 2);
+            indices.push_back(vertices.size() - 1);
         }
         else
         {
-            indices.push_back(vertices.size() - 1);
+            indices.push_back(vertices.size() - 2);
             indices.push_back(vertices.size() - 3);
             indices.push_back(vertices.size() - 4);
 
             indices.push_back(vertices.size() - 1);
             indices.push_back(vertices.size() - 2);
-            indices.push_back(vertices.size() - 3);
+            indices.push_back(vertices.size() - 4);
         }
         
 
         /*for(int i = 0; i < 6; i++) {
             printf("%i ", indices[indices.size() - 6 + i]);
-        }*/
+        }
 
-        /*for(int i = 0; i < 4; i++) {
+        for(int i = 0; i < 4; i++) {
             printf("%f %f %f\n", vertices[vertices.size() - 4 + i].x, vertices[vertices.size() - 4 + i].y, vertices[vertices.size() - 4 + i].z);
         }
 

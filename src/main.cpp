@@ -1,9 +1,10 @@
-/* Using standard C++ output libraries */
+// Std
 #include <cstdlib>
 #include <iostream>
+#include <vector>
 #include <math.h>
-using namespace std;
 
+// Backend
 #include <GL/glew.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -11,12 +12,14 @@ using namespace std;
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
 #include <reactphysics3d/reactphysics3d.h>
-#include <vector>
 
+// Engine
 #include "../include/config.hpp"
 #include "../include/shader.hpp"
 #include "../include/chunk.hpp"
 #include "../include/helper.hpp"
+
+using namespace std;
 
 GLuint program;
 GLuint texture_id, program_id;
@@ -39,17 +42,34 @@ int screen_height = 720;
 
 bool init_resources()
 {
-	for(int y = 0; y < CHUNK_SIZE; y++) {
-		for(int z = 0; z < CHUNK_SIZE; z++) {
-			for(int x = 0; x < CHUNK_SIZE; x++) {
-				if((y == 0) || (x == 4 && y != 0)) {
-					chunk.blocks[x][y][z].type = BlockType::DIRT;
-				}else chunk.blocks[x][y][z].type = BlockType::AIR;
+	for(int j = 0; j < 2; j++) {
+		chunks.push_back(Chunk());
+		if(j > 0) {
+			chunks[j - 1].adjacent_chunks[2] = &chunks[j];
+			chunks[j].adjacent_chunks[3] = &chunks[j - 1];
+		}
+		for(int y = 0; y < CHUNK_SIZE; y++) {
+			for(int z = 0; z < CHUNK_SIZE; z++) {
+				for(int x = 0; x < CHUNK_SIZE; x++) {
+					if((y == 0) || (x == 4 && y != 0)) {
+						chunks[j].blocks[x][y][z].type = BlockType::DIRT;
+					}else chunks[j].blocks[x][y][z].type = BlockType::AIR;
+
+					//printf("Type: %i\n", chunk.blocks[x][y][z].type);
+				}
 			}
 		}
+
+		chunks[j].x = j;
 	}
 
-	chunk.updateMesh();
+	chunks[0].blocks[0][9][0].type = BlockType::DIRT;
+	chunks[0].blocks[0][8][0].type = BlockType::DIRT;
+
+	for(auto& chunk : chunks) {
+		chunk.updateMesh(&physicsCommon, world);
+		printf("Chunk X: %i Y: %i Z: %i Faces: %i\n", chunk.x, chunk.y, chunk.z, chunk.indices.size()/6);
+	}
 
 	SDL_Surface* res_texture = IMG_Load("res/textures/texture.png");
 	if (res_texture == NULL) {
@@ -132,7 +152,7 @@ float dt = 0;
 bool m_left, m_right, m_up, m_down = false;
 
 #define ROT_SPEED 1000.0f
-#define CAM_DIST 15.0f
+float CAM_DIST = 15.0f;
 
 void logic()
 {
@@ -155,7 +175,9 @@ void logic()
 		vel.x = -MOVE_SPEED;
 	}
 
-	offset += vel * dt;
+	offset.y += vel.x * dt;
+	CAM_DIST -= vel.z * dt;
+
 
 	offset.x = cos(SDL_GetTicks() / ROT_SPEED) * CAM_DIST;
 	offset.z = sin(SDL_GetTicks() / ROT_SPEED) * CAM_DIST;
@@ -171,7 +193,7 @@ void logic()
 	glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(-8, -16, -8));
 	glm::mat4 view = glm::translate(glm::mat4(1.0f), offset);
 	view *= glm::rotate(view, glm::radians(lookDir.y), glm::vec3(1.0, 0.0, 0.0));
-	view = glm::lookAt(offset + glm::vec3(0, 5, 0), glm::vec3(0, -10, 0), glm::vec3(0, 1, 0));
+	view = glm::lookAt(offset + glm::vec3(0, -16, 0), glm::vec3(0, -10, 0), glm::vec3(0, 1, 0));
 	glm::mat4 projection = glm::perspective(45.0f, 1.0f*screen_width/screen_height, 0.1f, 300.0f);
 
 	glm::mat4 mvp = projection * view * model;
@@ -181,43 +203,48 @@ void logic()
 
 }
 
-void render(SDL_Window* window) {
+void render(SDL_Window* window)
+{
 	/* Clear the background as white */
 	glClearColor(WHITE, 1.0);
 	glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
 
 	glUseProgram(program);
-	glEnableVertexAttribArray(attribute_coord3d);
-	glBindBuffer(GL_ARRAY_BUFFER, chunk.vbo_vertices);
-	glVertexAttribPointer(
-		attribute_coord3d,
-		3,
-		GL_FLOAT,
-		GL_FALSE,
-		5 * sizeof(GLfloat),
-		0 // offset of the first element
-	);
 
-	glActiveTexture(GL_TEXTURE0);
-	glUniform1i(uniform_mytexture, /*GL_TEXTURE*/0);
-	glBindTexture(GL_TEXTURE_2D, texture_id);
+	for(auto& chunk : chunks) {
+		//printf("Chunk: %i %i %li\n", chunk.x, chunk.y, chunk.indices.size());
+		glEnableVertexAttribArray(attribute_coord3d);
+		glBindBuffer(GL_ARRAY_BUFFER, chunk.vbo_vertices);
+		glVertexAttribPointer(
+			attribute_coord3d,
+			3,
+			GL_FLOAT,
+			GL_FALSE,
+			5 * sizeof(GLfloat),
+			0 // offset of the first element
+		);
 
-	/*glEnableVertexAttribArray(attribute_texcoord);
-	glBindBuffer(GL_ARRAY_BUFFER, chunk.vbo_texcoords);
-	glVertexAttribPointer(
-		attribute_texcoord, // attribute
-		2,                  // number of elements per vertex, here (x,y)
-		GL_FLOAT,           // the type of each element
-		GL_FALSE,           // take our values as-is
-		5 * sizeof(GLfloat),                  // no extra data between each position
-		(GLvoid*) (3 * sizeof(GLfloat))                   // offset of first element
-	);*/
+		glActiveTexture(GL_TEXTURE0);
+		glUniform1i(uniform_mytexture, /*GL_TEXTURE*/0);
+		glBindTexture(GL_TEXTURE_2D, texture_id);
 
-	
-	/* Push each element in buffer_vertices to the vertex shader */
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, chunk.ibo_elements);
-	int size;  glGetBufferParameteriv(GL_ELEMENT_ARRAY_BUFFER, GL_BUFFER_SIZE, &size);
-	glDrawElements(GL_TRIANGLES, size/sizeof(GLushort), GL_UNSIGNED_SHORT, 0);
+		/*glEnableVertexAttribArray(attribute_texcoord);
+		glBindBuffer(GL_ARRAY_BUFFER, chunk.vbo_texcoords);
+		glVertexAttribPointer(
+			attribute_texcoord, // attribute
+			2,                  // number of elements per vertex, here (x,y)
+			GL_FLOAT,           // the type of each element
+			GL_FALSE,           // take our values as-is
+			5 * sizeof(GLfloat),                  // no extra data between each position
+			(GLvoid*) (3 * sizeof(GLfloat))                   // offset of first element
+		);*/
+
+		
+		/* Push each element in buffer_vertices to the vertex shader */
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, chunk.ibo_elements);
+		int size;  glGetBufferParameteriv(GL_ELEMENT_ARRAY_BUFFER, GL_BUFFER_SIZE, &size);
+		glDrawElements(GL_TRIANGLES, size/sizeof(GLushort), GL_UNSIGNED_SHORT, 0);
+	}
 
 	/* Display the result */
 	SDL_GL_SwapWindow(window);
