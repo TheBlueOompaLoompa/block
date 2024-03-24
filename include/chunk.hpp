@@ -3,7 +3,6 @@
 #include <vector>
 #include <GL/glew.h>
 #include <glm/glm.hpp>
-#include <reactphysics3d/reactphysics3d.h>
 
 #include "block.hpp"
 #include "geometry.hpp"
@@ -18,8 +17,7 @@ struct Chunk
     int z = 0;
 
     Block blocks[CHUNK_SIZE][CHUNK_SIZE][CHUNK_SIZE]; // XYZ
-    rp3d::Collider* collider;
-    rp3d::RigidBody* body;
+    
 
     GLuint vbo_vertices;
     GLuint ibo_elements;
@@ -29,6 +27,11 @@ struct Chunk
     std::vector<GLushort> indices;
 
     Chunk* adjacent_chunks[6]; // up down left right forward back
+
+    // Hungry hungry hippos baybee
+    void hippo() {
+
+    }
 
     void updateMesh(rp3d::PhysicsCommon* physicsCommon, rp3d::PhysicsWorld* world)
     {
@@ -68,19 +71,19 @@ struct Chunk
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(GLushort), indices.data(), GL_STATIC_DRAW);
 
         // Physics stuff
-        /*body = world->createRigidBody(rp3d::Transform());
+        body = world->createRigidBody(rp3d::Transform());
         body->setType(rp3d::BodyType::KINEMATIC);
         body->setIsAllowedToSleep(true);
 
         // TODO: Fix memory leak, THIS WILL LEAK 100%
 
-        rp3d::TriangleVertexArray* triangleArray =
-            new rp3d::TriangleVertexArray ( vertices.size(), &vertices[0], 5 * sizeof (float), indices.size()/3, &indices[0], sizeof ( GLushort ),
-                rp3d::TriangleVertexArray::VertexDataType::VERTEX_FLOAT_TYPE ,
+        /*col_tva =
+            new rp3d::TriangleVertexArray (4, vertices.data(), sizeof(Vertex), 6, indices.data(), sizeof ( GLushort ),
+                rp3d::TriangleVertexArray::VertexDataType::VERTEX_FLOAT_TYPE,
                 rp3d::TriangleVertexArray::IndexDataType::INDEX_INTEGER_TYPE );
 
         rp3d::TriangleMesh * triangleMesh = physicsCommon->createTriangleMesh();
-        triangleMesh->addSubpart(triangleArray);
+        triangleMesh->addSubpart(col_tva);
         rp3d::ConcaveMeshShape* shape = physicsCommon->createConcaveMeshShape(
             triangleMesh
         );*/
@@ -136,22 +139,22 @@ struct Chunk
             x: (float)sx,
             y: (float)sy,
             z: (float)sz,
-            0.0f, 0.0f });
+            /*0.0f, 0.0f*/ });
         vertices.push_back({
             x: (float)(sx + right.x),
             y: (float)(sy + right.y),
             z: (float)(sz + right.z),
-            1.0f, 0.0f });
+            /*1.0f, 0.0f*/ });
         vertices.push_back({
             x: (float)(sx + right.x + up.x),
             y: (float)(sy + right.y + up.y),
             z: (float)(sz + right.z + up.z),
-            1.0f, 1.0f });
+            /*1.0f, 1.0f*/ });
         vertices.push_back({
             x: (float)(sx + up.x),
             y: (float)(sy + up.y),
             z: (float)(sz + up.z),
-            0.0f, 1.0f });
+            /*0.0f, 1.0f*/ });
 
         if(flip)
         {

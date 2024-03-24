@@ -13,9 +13,14 @@
       SDL2_image
       libtiff
       freetype
+      wayland
+      libGL
+      libxkbcommon
       reactphysics3d
+      bullet
       glslang
       zip
       gdb
+
     ];
 }

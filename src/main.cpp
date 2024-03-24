@@ -11,7 +11,7 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
-#include <reactphysics3d/reactphysics3d.h>
+#include <bullet/btBulletDynamicsCommon.h>
 
 // Engine
 #include "../include/config.hpp"

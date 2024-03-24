@@ -4,7 +4,7 @@ project(Block)
 
 file(COPY res DESTINATION .)
 
-set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -lGL -lSDL2_image -O0 -Wall")
+set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -lGL -lSDL2_image -O2 -g -Wall")
 
 INCLUDE(FindPkgConfig)
 
@@ -23,7 +23,9 @@ include_directories(${GL_INCLUDE_DIRS})
 find_package(glm REQUIRED)
 include_directories(${GLM_INCLUDE_DIRS})
 
-find_package ( ReactPhysics3D REQUIRED )
+find_package (ReactPhysics3D REQUIRED)
+
+find_package (Bullet REQUIRED)
 
 file(GLOB SOURCES src/*.cpp)
 add_executable(mblock ${SOURCES})
