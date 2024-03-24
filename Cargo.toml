@@ -1,0 +1,11 @@
+[package]
+name = "block"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+glium_sdl2 = { git="https://github.com/ComLarsic/glium-sdl2", version="0.16" }
+sdl2 = "0.35"
+glium = "0.31"

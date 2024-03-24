@@ -1,6 +1,1 @@
-block
-
-*.so
-.vscode/c_cpp_properties.json
-*.zip
-build
+target
