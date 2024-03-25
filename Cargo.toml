@@ -9,3 +9,4 @@ edition = "2021"
 glium_sdl2 = { git="https://github.com/ComLarsic/glium-sdl2", version="0.16" }
 sdl2 = "0.35"
 glium = "0.31"
+ndarray = "0.15.6"

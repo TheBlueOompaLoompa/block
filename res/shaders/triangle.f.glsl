@@ -1,6 +1,6 @@
 #version 140
 
-in vec2 f_pos;
+in vec3 f_pos;
 out vec4 color;
 
 void main() {
