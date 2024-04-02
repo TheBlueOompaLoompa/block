@@ -72,7 +72,7 @@ struct Chunk {
 
     // Returns true if opaque block is at pos
     bool chk_block(int ix, int iy, int iz) {
-        if(ix > CHUNK_SIZE - 1){
+        if(ix > CHUNK_SIZE - 1) {
             // Left adjacent chunk
             if(adjacent_chunks[2] == nullptr) return false;
             else return adjacent_chunks[2]->blocks[ix - CHUNK_SIZE][iy][iz].type != BlockType::AIR;
@@ -82,22 +82,22 @@ struct Chunk {
             if(adjacent_chunks[3] == nullptr) return false;
             else return adjacent_chunks[3]->chk_block(ix + CHUNK_SIZE, iy, iz);
         }
-        else if(iy > CHUNK_SIZE - 1){
+        else if(iy > CHUNK_SIZE - 1) {
             // Above
             if(adjacent_chunks[0] == nullptr) return false;
             else return adjacent_chunks[0]->blocks[ix][iy - CHUNK_SIZE][iz].type != BlockType::AIR;
         }
-        else if(iy < 0){
+        else if(iy < 0) {
             // Below
             if(adjacent_chunks[1] == nullptr) return false;
             else return adjacent_chunks[1]->blocks[ix][iy + CHUNK_SIZE][iz].type != BlockType::AIR;
         }
-        else if(iz > CHUNK_SIZE - 1){
+        else if(iz > CHUNK_SIZE - 1) {
             // Front
             if(adjacent_chunks[4] == nullptr) return false;
             else return adjacent_chunks[4]->blocks[ix][iy][iz - CHUNK_SIZE].type != BlockType::AIR;
         }
-        else if(iz < 0){
+        else if(iz < 0) {
             // Back
             if(adjacent_chunks[5] == nullptr) return false;
             else return adjacent_chunks[5]->blocks[ix][iy][iz + CHUNK_SIZE].type != BlockType::AIR;
@@ -105,16 +105,10 @@ struct Chunk {
         else return blocks[ix][iy][iz].type != BlockType::AIR;
     }
 
-    void generate_side(int sx, int sy, int sz, glm::vec3 up, glm::vec3 right, bool chkFlip, bool flip = false)
-    {
-        //if(sy > 15) printf("I TOLD U\n");
-        
+    void generate_side(int sx, int sy, int sz, glm::vec3 up, glm::vec3 right, bool chkFlip, bool flip = false) {
         glm::vec3 dir = glm::cross(up, right) * glm::vec3(chkFlip ? 0 : (flip ? -1 : 1));
-        //printf("\nSurface X: %i Y: %i Z: %i Checking: %f %f %f", sx, sy, sz, dir.x + sx, dir.y + sy, dir.z + sz);
         if(chk_block(dir.x + sx, dir.y + sy, dir.z + sz)) return;
-        //printf(" Open");
 
-        // Front
         vertices.push_back({
             x: (float)sx,
             y: (float)sy,
@@ -136,8 +130,7 @@ struct Chunk {
             z: (float)(sz + up.z),
             0.0f, 1.0f });
 
-        if(flip)
-        {
+        if(flip) {
             indices.push_back(vertices.size() - 4);
             indices.push_back(vertices.size() - 3);
             indices.push_back(vertices.size() - 2);
@@ -145,9 +138,7 @@ struct Chunk {
             indices.push_back(vertices.size() - 4);
             indices.push_back(vertices.size() - 2);
             indices.push_back(vertices.size() - 1);
-        }
-        else
-        {
+        } else {
             indices.push_back(vertices.size() - 2);
             indices.push_back(vertices.size() - 3);
             indices.push_back(vertices.size() - 4);
@@ -156,17 +147,6 @@ struct Chunk {
             indices.push_back(vertices.size() - 2);
             indices.push_back(vertices.size() - 4);
         }
-        
-
-        /*for(int i = 0; i < 6; i++) {
-            printf("%i ", indices[indices.size() - 6 + i]);
-        }
-
-        for(int i = 0; i < 4; i++) {
-            printf("%f %f %f\n", vertices[vertices.size() - 4 + i].x, vertices[vertices.size() - 4 + i].y, vertices[vertices.size() - 4 + i].z);
-        }
-
-        printf("Vertices: %li Indices: %li\n XYZ: %i %i %i\n", vertices.size(), indices.size(), sx, sy, sz);*/
     }
 
     void destroy() {
