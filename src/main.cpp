@@ -11,7 +11,7 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
-#include <bullet/btBulletDynamicsCommon.h>
+#include <reactphysics3d/reactphysics3d.h>
 
 // Engine
 #include "../include/config.hpp"
@@ -40,8 +40,7 @@ PhysicsWorld* world = physicsCommon.createPhysicsWorld();
 int screen_width = 1280;
 int screen_height = 720;
 
-bool init_resources()
-{
+bool init_resources() {
 	for(int j = 0; j < 2; j++) {
 		chunks.push_back(Chunk());
 		if(j > 0) {
@@ -68,7 +67,7 @@ bool init_resources()
 
 	for(auto& chunk : chunks) {
 		chunk.updateMesh(&physicsCommon, world);
-		printf("Chunk X: %i Y: %i Z: %i Faces: %i\n", chunk.x, chunk.y, chunk.z, chunk.indices.size()/6);
+		printf("Chunk X: %i Y: %i Z: %i Faces: %li\n", chunk.x, chunk.y, chunk.z, chunk.indices.size()/6);
 	}
 
 	SDL_Surface* res_texture = IMG_Load("res/textures/texture.png");
@@ -96,39 +95,30 @@ bool init_resources()
 	
 	GLuint vs, fs;
 
-	if((vs = create_shader("res/shaders/cube.v.glsl", GL_VERTEX_SHADER)) == 0) return false;
-	if((fs = create_shader("res/shaders/cube.f.glsl", GL_FRAGMENT_SHADER)) == 0) return false;
+	if(
+		(vs = create_shader("res/shaders/cube.v.glsl", GL_VERTEX_SHADER)) == 0 || 
+		(fs = create_shader("res/shaders/cube.f.glsl", GL_FRAGMENT_SHADER)) == 0
+	) { return false; }
 
 	program = glCreateProgram();
 	glAttachShader(program, vs);
 	glAttachShader(program, fs);
 	glLinkProgram(program);
 	glGetProgramiv(program, GL_LINK_STATUS, &link_ok);
-	if (!link_ok)
-	{
+	if (!link_ok) {
 		cerr << "Error in glLinkProgram" << endl;
 		return false;
 	}
-	const char* attribute_name = "coord3d";
-	attribute_coord3d = glGetAttribLocation(program, attribute_name);
-	if (attribute_coord3d == -1)
-	{
-		cerr << "Could not bind attribute " << attribute_name << endl;
-		return false;
-	}
-
-	/*attribute_name = "texcoord";
-	attribute_texcoord = glGetAttribLocation(program, attribute_name);
-	if (attribute_texcoord == -1) {
-		cerr << "Could not bind attribute " << attribute_name << endl;
-		return false;
-	}*/
+	
+	if(
+		!bind_attrib(&attribute_coord3d, program, "coord3d") ||
+		!bind_attrib(&attribute_texcoord, program, "texcoord")
+	) { return false; }
 
 	const char* uniform_name;
 	uniform_name = "mvp";
 	uniform_mvp = glGetUniformLocation(program, uniform_name);
-	if (uniform_fade == -1)
-	{
+	if (uniform_fade == -1) {
 		cerr << "Could not bind uniform " << uniform_name << endl;
 		return false;
 	}
@@ -154,8 +144,7 @@ bool m_left, m_right, m_up, m_down = false;
 #define ROT_SPEED 1000.0f
 float CAM_DIST = 15.0f;
 
-void logic()
-{
+void logic() {
 	dt = SDL_GetTicks() - last_time;
 	world->update(dt / 1000.0f);
 	last_time = SDL_GetTicks();
@@ -203,8 +192,7 @@ void logic()
 
 }
 
-void render(SDL_Window* window)
-{
+void render(SDL_Window* window) {
 	/* Clear the background as white */
 	glClearColor(WHITE, 1.0);
 	glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
@@ -220,7 +208,7 @@ void render(SDL_Window* window)
 			3,
 			GL_FLOAT,
 			GL_FALSE,
-			5 * sizeof(GLfloat),
+			sizeof(Vertex),
 			0 // offset of the first element
 		);
 
@@ -228,8 +216,8 @@ void render(SDL_Window* window)
 		glUniform1i(uniform_mytexture, /*GL_TEXTURE*/0);
 		glBindTexture(GL_TEXTURE_2D, texture_id);
 
-		/*glEnableVertexAttribArray(attribute_texcoord);
-		glBindBuffer(GL_ARRAY_BUFFER, chunk.vbo_texcoords);
+		glEnableVertexAttribArray(attribute_texcoord);
+		glBindBuffer(GL_ARRAY_BUFFER, chunk.vbo_vertices);
 		glVertexAttribPointer(
 			attribute_texcoord, // attribute
 			2,                  // number of elements per vertex, here (x,y)
@@ -237,7 +225,7 @@ void render(SDL_Window* window)
 			GL_FALSE,           // take our values as-is
 			5 * sizeof(GLfloat),                  // no extra data between each position
 			(GLvoid*) (3 * sizeof(GLfloat))                   // offset of first element
-		);*/
+		);
 
 		
 		/* Push each element in buffer_vertices to the vertex shader */
@@ -250,16 +238,14 @@ void render(SDL_Window* window)
 	SDL_GL_SwapWindow(window);
 }
 
-void onResize(int width, int height)
-{
+void onResize(int width, int height) {
 	screen_width = width;
 	screen_height = height;
 	glViewport(0, 0, screen_width, screen_height);
 }
 
 
-void free_resources()
-{
+void free_resources() {
 	glDeleteProgram(program);
 	glDeleteTextures(1, &texture_id);
 	chunk.destroy();
@@ -291,8 +277,7 @@ void look(int x, int y) {
 	lookDir += glm::vec2(x * LOOK_SPEED, y * LOOK_SPEED);
 }
 
-void mainLoop(SDL_Window* window)
-{
+void mainLoop(SDL_Window* window) {
 	while (true) {
 		SDL_Event ev;
 		while (SDL_PollEvent(&ev)) {
@@ -330,8 +315,7 @@ void mainLoop(SDL_Window* window)
 	}
 }
 
-int main(int argc, char* argv[])
-{
+int main(int argc, char* argv[]) {
 	printf("Start Block\n");
 
 	/* SDL-related initialising functions */

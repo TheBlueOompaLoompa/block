@@ -25,8 +25,6 @@ include_directories(${GLM_INCLUDE_DIRS})
 
 find_package (ReactPhysics3D REQUIRED)
 
-find_package (Bullet REQUIRED)
-
 file(GLOB SOURCES src/*.cpp)
 add_executable(mblock ${SOURCES})
 

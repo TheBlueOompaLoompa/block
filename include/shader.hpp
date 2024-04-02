@@ -51,3 +51,13 @@ GLuint create_shader(const char* filename, GLenum type) {
 	
 	return res;
 }
+
+bool bind_attrib(GLuint* loc, GLuint program, const char* attribute_name) {
+	*loc = glGetAttribLocation(program, attribute_name);
+	if (*loc == -1) {
+		std::cerr << "Could not bind attribute " << attribute_name << std::endl;
+		return false;
+	}
+
+	return true;
+}

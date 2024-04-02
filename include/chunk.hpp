@@ -3,6 +3,7 @@
 #include <vector>
 #include <GL/glew.h>
 #include <glm/glm.hpp>
+#include <reactphysics3d/reactphysics3d.h>
 
 #include "block.hpp"
 #include "geometry.hpp"
@@ -10,14 +11,12 @@
 
 #define CHUNK_SIZE 16
 
-struct Chunk
-{
+struct Chunk {
     int x = 0;
     int y = 0;
     int z = 0;
 
     Block blocks[CHUNK_SIZE][CHUNK_SIZE][CHUNK_SIZE]; // XYZ
-    
 
     GLuint vbo_vertices;
     GLuint ibo_elements;
@@ -28,13 +27,13 @@ struct Chunk
 
     Chunk* adjacent_chunks[6]; // up down left right forward back
 
+    // TODO: Hippo optimize mesh
     // Hungry hungry hippos baybee
     void hippo() {
 
     }
 
-    void updateMesh(rp3d::PhysicsCommon* physicsCommon, rp3d::PhysicsWorld* world)
-    {
+    void updateMesh(rp3d::PhysicsCommon* physicsCommon, rp3d::PhysicsWorld* world) {
         for(int my = 0; my < CHUNK_SIZE; my++) {
             for(int mz = 0; mz < CHUNK_SIZE; mz++) {
                 for(int mx = 0; mx < CHUNK_SIZE; mx++) {
@@ -69,56 +68,37 @@ struct Chunk
         glGenBuffers(1, &ibo_elements);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo_elements);
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(GLushort), indices.data(), GL_STATIC_DRAW);
-
-        // Physics stuff
-        body = world->createRigidBody(rp3d::Transform());
-        body->setType(rp3d::BodyType::KINEMATIC);
-        body->setIsAllowedToSleep(true);
-
-        // TODO: Fix memory leak, THIS WILL LEAK 100%
-
-        /*col_tva =
-            new rp3d::TriangleVertexArray (4, vertices.data(), sizeof(Vertex), 6, indices.data(), sizeof ( GLushort ),
-                rp3d::TriangleVertexArray::VertexDataType::VERTEX_FLOAT_TYPE,
-                rp3d::TriangleVertexArray::IndexDataType::INDEX_INTEGER_TYPE );
-
-        rp3d::TriangleMesh * triangleMesh = physicsCommon->createTriangleMesh();
-        triangleMesh->addSubpart(col_tva);
-        rp3d::ConcaveMeshShape* shape = physicsCommon->createConcaveMeshShape(
-            triangleMesh
-        );*/
     }
 
     // Returns true if opaque block is at pos
-    bool chk_block(int ix, int iy, int iz)
-    {
-        if(ix > CHUNK_SIZE - 1)
-        { // Left adjacent chunk
+    bool chk_block(int ix, int iy, int iz) {
+        if(ix > CHUNK_SIZE - 1){
+            // Left adjacent chunk
             if(adjacent_chunks[2] == nullptr) return false;
             else return adjacent_chunks[2]->blocks[ix - CHUNK_SIZE][iy][iz].type != BlockType::AIR;
         }
-        else if(ix < 0)
-        { // Right
+        else if(ix < 0) {
+            // Right
             if(adjacent_chunks[3] == nullptr) return false;
             else return adjacent_chunks[3]->chk_block(ix + CHUNK_SIZE, iy, iz);
         }
-        else if(iy > CHUNK_SIZE - 1)
-        { // Above
+        else if(iy > CHUNK_SIZE - 1){
+            // Above
             if(adjacent_chunks[0] == nullptr) return false;
             else return adjacent_chunks[0]->blocks[ix][iy - CHUNK_SIZE][iz].type != BlockType::AIR;
         }
-        else if(iy < 0)
-        { // Below
+        else if(iy < 0){
+            // Below
             if(adjacent_chunks[1] == nullptr) return false;
             else return adjacent_chunks[1]->blocks[ix][iy + CHUNK_SIZE][iz].type != BlockType::AIR;
         }
-        else if(iz > CHUNK_SIZE - 1)
-        { // Front
+        else if(iz > CHUNK_SIZE - 1){
+            // Front
             if(adjacent_chunks[4] == nullptr) return false;
             else return adjacent_chunks[4]->blocks[ix][iy][iz - CHUNK_SIZE].type != BlockType::AIR;
         }
-        else if(iz < 0)
-        { // Back
+        else if(iz < 0){
+            // Back
             if(adjacent_chunks[5] == nullptr) return false;
             else return adjacent_chunks[5]->blocks[ix][iy][iz + CHUNK_SIZE].type != BlockType::AIR;
         }
@@ -139,22 +119,22 @@ struct Chunk
             x: (float)sx,
             y: (float)sy,
             z: (float)sz,
-            /*0.0f, 0.0f*/ });
+            0.0f, 0.0f });
         vertices.push_back({
             x: (float)(sx + right.x),
             y: (float)(sy + right.y),
             z: (float)(sz + right.z),
-            /*1.0f, 0.0f*/ });
+            1.0f, 0.0f });
         vertices.push_back({
             x: (float)(sx + right.x + up.x),
             y: (float)(sy + right.y + up.y),
             z: (float)(sz + right.z + up.z),
-            /*1.0f, 1.0f*/ });
+            1.0f, 1.0f });
         vertices.push_back({
             x: (float)(sx + up.x),
             y: (float)(sy + up.y),
             z: (float)(sz + up.z),
-            /*0.0f, 1.0f*/ });
+            0.0f, 1.0f });
 
         if(flip)
         {
@@ -194,5 +174,3 @@ struct Chunk
         glDeleteBuffers(1, &ibo_elements);
     }
 };
-
-Chunk a;
