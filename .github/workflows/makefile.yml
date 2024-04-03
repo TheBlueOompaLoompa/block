@@ -1,4 +1,4 @@
-name: "Test"
+name: "Compile Binary"
 on:
   pull_request:
   push:
