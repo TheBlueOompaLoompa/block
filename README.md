@@ -15,7 +15,7 @@ chmod +x block
 
 ## Todolist
 
-- [ ] First person camera
+- [x] First person camera
 - [ ] Texture atlas
 
 [Tutorial](https://en.wikibooks.org/wiki/OpenGL_Programming)

@@ -8,6 +8,7 @@
 #include <GL/glew.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtx/quaternion.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
@@ -126,23 +127,17 @@ bool init_resources() {
 	return true;
 }
 
-Vector3 position(0, 20, -10);
-Quaternion orientation = Quaternion::identity(); 
-Transform c_transform(position, orientation); 
-RigidBody* body = world->createRigidBody(c_transform); 
-
-glm::vec3 offset = glm::vec3(0, 5, 0);
+glm::vec3 offset = glm::vec3(0, 0, 0);
 glm::vec3 vel;
-glm::vec2 lookDir;
+glm::vec2 look_dir;
 
-glm::mat4 cameraTransform = glm::mat4(1.0f);
+glm::mat4 camera_transform = glm::mat4(1.0f);
 
 float last_time = 0;
 float dt = 0;
 bool m_left, m_right, m_up, m_down = false;
 
-#define ROT_SPEED 1000.0f
-float CAM_DIST = 15.0f;
+glm::quat orientation = glm::quat(glm::vec3(0.0f, 0.0f, 0.0f));
 
 void logic() {
 	dt = SDL_GetTicks() - last_time;
@@ -164,25 +159,30 @@ void logic() {
 		vel.x = -MOVE_SPEED;
 	}
 
-	offset.y += vel.x * dt;
-	CAM_DIST -= vel.z * dt;
+	offset += glm::rotate(glm::inverse(orientation), V3FORWARD) * vel.z;
+	offset += glm::rotate(glm::inverse(orientation), V3RIGHT) * vel.x;
 
-
-	offset.x = cos(SDL_GetTicks() / ROT_SPEED) * CAM_DIST;
-	offset.z = sin(SDL_GetTicks() / ROT_SPEED) * CAM_DIST;
-
-	const Transform& transform = body->getTransform();
-    const Vector3& position = transform.getPosition();
-	const Quaternion& orientation = transform.getOrientation();
+	// const Transform& transform = body->getTransform();
+    // const Vector3& position = transform.getPosition();
+	// const Quaternion& orientation = transform.getOrientation();
 
 	float angle = SDL_GetTicks() / 1000.0 * 45;  // 45° per second
 	glm::vec3 axis_y(0, 1, 0);
 	//glm::mat4 anim = glm::rotate(glm::mat4(1.0f), glm::radians(angle), axis_y);
 	
 	glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(-8, -16, -8));
-	glm::mat4 view = glm::translate(glm::mat4(1.0f), offset);
-	view *= glm::rotate(view, glm::radians(lookDir.y), glm::vec3(1.0, 0.0, 0.0));
-	view = glm::lookAt(offset + glm::vec3(0, -16, 0), glm::vec3(0, -10, 0), glm::vec3(0, 1, 0));
+	glm::mat4 view = glm::translate(glm::mat4(1.0), glm::vec3(0.0));
+
+	glm::quat pitch = glm::angleAxis(look_dir.y, V3RIGHT);
+	glm::quat yaw = glm::angleAxis(look_dir.x, V3UP);
+
+	orientation = pitch * yaw;
+	orientation = glm::normalize(orientation);
+	glm::mat4 rotate = glm::mat4_cast(orientation);
+
+	view *= rotate;
+	view = glm::translate(view, offset);
+
 	glm::mat4 projection = glm::perspective(45.0f, 1.0f*screen_width/screen_height, 0.1f, 300.0f);
 
 	glm::mat4 mvp = projection * view * model;
@@ -194,7 +194,7 @@ void logic() {
 
 void render(SDL_Window* window) {
 	/* Clear the background as white */
-	glClearColor(WHITE, 1.0);
+	glClearColor(0.1, 0.1, 0.1, 1.0);
 	glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
 
 	glUseProgram(program);
@@ -267,14 +267,11 @@ void check_input(SDL_Scancode code, bool val) {
 			break;
 		default: break;
 	}
-
-	if(!val) {
-		printf("%f %f\n", offset.x, offset.z);
-	}
 }
 
 void look(int x, int y) {
-	lookDir += glm::vec2(x * LOOK_SPEED, y * LOOK_SPEED);
+	look_dir.x += (float)x * LOOK_SPEED;
+	look_dir.y = max(min((float)y * LOOK_SPEED + look_dir.y, 90.0f), -90.0f);
 }
 
 void mainLoop(SDL_Window* window) {
