@@ -106,29 +106,47 @@ struct Chunk {
     }
 
     void generate_side(int sx, int sy, int sz, glm::vec3 up, glm::vec3 right, bool chkFlip, bool flip = false) {
+        glm::vec3 normal = glm::cross(up, right);
         glm::vec3 dir = glm::cross(up, right) * glm::vec3(chkFlip ? 0 : (flip ? -1 : 1));
         if(chk_block(dir.x + sx, dir.y + sy, dir.z + sz)) return;
+
+        normal *= !chkFlip ? -1 : 1;
+
+        bool flip_y = false;
+        bool flip_x = false;
+
+        if(glm::dot(normal, V3UP) < 0) { flip_x = true; }
+        if(glm::dot(normal, V3FORWARD) < 0) { flip_x = true; }
+        if(glm::dot(normal, V3RIGHT) < 0) { flip_x = true; }
 
         vertices.push_back({
             x: (float)sx,
             y: (float)sy,
             z: (float)sz,
-            0.0f, 0.0f });
+            u: flip_y ? 1.0f : 0.0f,
+            v: flip_x ? 1.0f : 0.0f
+        });
         vertices.push_back({
             x: (float)(sx + right.x),
             y: (float)(sy + right.y),
             z: (float)(sz + right.z),
-            1.0f, 0.0f });
+            u: flip_y ? 0.0f : 1.0f,
+            v: flip_x ? 1.0f : 0.0f
+        });
         vertices.push_back({
             x: (float)(sx + right.x + up.x),
             y: (float)(sy + right.y + up.y),
             z: (float)(sz + right.z + up.z),
-            1.0f, 1.0f });
+            u: flip_y ? 0.0f : 1.0f,
+            v: flip_x ? 0.0f : 1.0f
+        });
         vertices.push_back({
             x: (float)(sx + up.x),
             y: (float)(sy + up.y),
             z: (float)(sz + up.z),
-            0.0f, 1.0f });
+            u: flip_y ? 1.0f : 0.0f,
+            v: flip_x ? 0.0f : 1.0f
+        });
 
         if(flip) {
             indices.push_back(vertices.size() - 4);

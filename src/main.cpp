@@ -42,7 +42,7 @@ int screen_width = 1280;
 int screen_height = 720;
 
 bool init_resources() {
-	for(int j = 0; j < 2; j++) {
+	for(int j = 0; j < 1; j++) {
 		chunks.push_back(Chunk());
 		if(j > 0) {
 			chunks[j - 1].adjacent_chunks[2] = &chunks[j];
@@ -51,11 +51,7 @@ bool init_resources() {
 		for(int y = 0; y < CHUNK_SIZE; y++) {
 			for(int z = 0; z < CHUNK_SIZE; z++) {
 				for(int x = 0; x < CHUNK_SIZE; x++) {
-					if((y == 0) || (x == 4 && y != 0)) {
-						chunks[j].blocks[x][y][z].type = BlockType::DIRT;
-					}else chunks[j].blocks[x][y][z].type = BlockType::AIR;
-
-					//printf("Type: %i\n", chunk.blocks[x][y][z].type);
+					chunks[j].blocks[x][y][z].type = BlockType::AIR;
 				}
 			}
 		}
@@ -63,9 +59,8 @@ bool init_resources() {
 		chunks[j].x = j;
 	}
 
-	chunks[0].blocks[0][9][0].type = BlockType::DIRT;
-	chunks[0].blocks[0][8][0].type = BlockType::DIRT;
-
+	chunks[0].blocks[8][8][8].type = BlockType::DIRT;
+	
 	for(auto& chunk : chunks) {
 		chunk.updateMesh(&physicsCommon, world);
 		printf("Chunk X: %i Y: %i Z: %i Faces: %li\n", chunk.x, chunk.y, chunk.z, chunk.indices.size()/6);

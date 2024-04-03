@@ -7,6 +7,7 @@ varying vec2 f_texcoord;
 uniform sampler2D mytexture;
 
 void main(void) {
-    vec2 flipped = vec2(f_texcoord.x, 1.0 - f_texcoord.y);
+    vec2 flipped = vec2(f_texcoord.y, 1.0-f_texcoord.x);
+    
     FragColor = texture2D(mytexture, flipped);
 }
