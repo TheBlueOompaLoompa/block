@@ -1,4 +1,4 @@
 #pragma once
 
-#define MOVE_SPEED .01
-#define LOOK_SPEED .1
+#define MOVE_SPEED .1f
+#define LOOK_SPEED .01f
