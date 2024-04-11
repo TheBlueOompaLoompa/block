@@ -1,4 +1,5 @@
 #pragma once
+#include <SDL2/SDL.h>
 #include <SDL2/SDL_rwops.h>
 
 char* file_read(const char* filename) {
@@ -23,4 +24,13 @@ char* file_read(const char* filename) {
 	
 	res[nb_read_total] = '\0';
 	return res;
+}
+
+SDL_Color hex2sdlcol(uint32_t color) {
+	return {
+		color >> 24,
+		(color >> 16) & 0xf,
+		(color >> 8) & 0xf,
+		color & 0xf
+	};
 }

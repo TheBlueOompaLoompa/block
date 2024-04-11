@@ -38,16 +38,15 @@ struct Chunk {
             for(int mz = 0; mz < CHUNK_SIZE; mz++) {
                 for(int mx = 0; mx < CHUNK_SIZE; mx++) {
                     if(blocks[mx][my][mz].type == BlockType::AIR) continue;
-                    //printf("\nX: %i Y: %i Z: %i\n", mx, my, mz);
-
-                    generate_side(mx, my + 1, mz, V3FORWARD, V3RIGHT,true        );  // TOP
-                    generate_side(mx, my, mz,     V3FORWARD, V3RIGHT,false, true );  // BOTTOM
                     
-                    generate_side(mx + 1, my, mz, V3FORWARD, V3UP,   true,  true );  // RIGHT
-                    generate_side(mx, my, mz,     V3FORWARD, V3UP,   false, false); // LEFT
+                    generate_side(blocks[mx][my][mz].type, mx, my + 1, mz, V3FORWARD, V3RIGHT,true        );  // TOP
+                    generate_side(blocks[mx][my][mz].type, mx, my, mz,     V3FORWARD, V3RIGHT,false, true );  // BOTTOM
+                    
+                    generate_side(blocks[mx][my][mz].type, mx + 1, my, mz, V3FORWARD, V3UP,   true,  true );  // RIGHT
+                    generate_side(blocks[mx][my][mz].type, mx, my, mz,     V3FORWARD, V3UP,   false, false); // LEFT
 
-                    generate_side(mx, my, mz + 1, V3RIGHT,   V3UP,   true,  false); // FRONT
-                    generate_side(mx, my, mz,     V3RIGHT,   V3UP,   false, true );  // BACK
+                    generate_side(blocks[mx][my][mz].type, mx, my, mz + 1, V3RIGHT,   V3UP,   true,  false); // FRONT
+                    generate_side(blocks[mx][my][mz].type, mx, my, mz,     V3RIGHT,   V3UP,   false, true );  // BACK
                 }
             }
         }
@@ -70,14 +69,15 @@ struct Chunk {
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(GLushort), indices.data(), GL_STATIC_DRAW);
     }
 
+    // TODO: Fix adjacent chunk block detection
     // Returns true if opaque block is at pos
     bool chk_block(int ix, int iy, int iz) {
-        if(ix > CHUNK_SIZE - 1) {
+        if(ix < 0) {
             // Left adjacent chunk
             if(adjacent_chunks[2] == nullptr) return false;
             else return adjacent_chunks[2]->blocks[ix - CHUNK_SIZE][iy][iz].type != BlockType::AIR;
         }
-        else if(ix < 0) {
+        else if(ix > CHUNK_SIZE - 1) {
             // Right
             if(adjacent_chunks[3] == nullptr) return false;
             else return adjacent_chunks[3]->chk_block(ix + CHUNK_SIZE, iy, iz);
@@ -105,7 +105,7 @@ struct Chunk {
         else return blocks[ix][iy][iz].type != BlockType::AIR;
     }
 
-    void generate_side(int sx, int sy, int sz, glm::vec3 up, glm::vec3 right, bool chkFlip, bool flip = false) {
+    void generate_side(BlockType block_type, int sx, int sy, int sz, glm::vec3 up, glm::vec3 right, bool chkFlip, bool flip = false) {
         glm::vec3 normal = glm::cross(up, right);
         glm::vec3 dir = glm::cross(up, right) * glm::vec3(chkFlip ? 0 : (flip ? -1 : 1));
         if(chk_block(dir.x + sx, dir.y + sy, dir.z + sz)) return;
@@ -115,37 +115,43 @@ struct Chunk {
         bool flip_y = false;
         bool flip_x = false;
 
-        if(glm::dot(normal, V3UP) < 0) { flip_x = true; }
-        if(glm::dot(normal, V3FORWARD) < 0) { flip_x = true; }
-        if(glm::dot(normal, V3RIGHT) < 0) { flip_x = true; }
+        if(
+            glm::dot(normal, V3UP) < 0 ||
+            glm::dot(normal, V3FORWARD) < 0 ||
+            glm::dot(normal, V3RIGHT) < 0
+        ) { flip_x = true; }
+
+        #define ATLAS_TEX_COUNT 2.0f
+        // Subtract one because of air
+        float atlas_offset = (float)block_type - 1;
 
         vertices.push_back({
             x: (float)sx,
             y: (float)sy,
             z: (float)sz,
-            u: flip_y ? 1.0f : 0.0f,
-            v: flip_x ? 1.0f : 0.0f
+            u: (flip_y ? 1.0f : 0.0f),
+            v: ((flip_x ? 1.0f : 0.0f) + atlas_offset) / ATLAS_TEX_COUNT
         });
         vertices.push_back({
             x: (float)(sx + right.x),
             y: (float)(sy + right.y),
             z: (float)(sz + right.z),
-            u: flip_y ? 0.0f : 1.0f,
-            v: flip_x ? 1.0f : 0.0f
+            u: (flip_y ? 0.0f : 1.0f),
+            v: ((flip_x ? 1.0f : 0.0f) + atlas_offset) / ATLAS_TEX_COUNT
         });
         vertices.push_back({
             x: (float)(sx + right.x + up.x),
             y: (float)(sy + right.y + up.y),
             z: (float)(sz + right.z + up.z),
-            u: flip_y ? 0.0f : 1.0f,
-            v: flip_x ? 0.0f : 1.0f
+            u: (flip_y ? 0.0f : 1.0f),
+            v: ((flip_x ? 0.0f : 1.0f) + atlas_offset) / ATLAS_TEX_COUNT
         });
         vertices.push_back({
             x: (float)(sx + up.x),
             y: (float)(sy + up.y),
             z: (float)(sz + up.z),
-            u: flip_y ? 1.0f : 0.0f,
-            v: flip_x ? 0.0f : 1.0f
+            u: (flip_y ? 1.0f : 0.0f),
+            v: ((flip_x ? 0.0f : 1.0f) + atlas_offset) / ATLAS_TEX_COUNT
         });
 
         if(flip) {

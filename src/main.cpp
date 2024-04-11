@@ -12,13 +12,20 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
+#include <SDL2/SDL_ttf.h>
 #include <reactphysics3d/reactphysics3d.h>
 
+#include "imgui.h"
+#include "backends/imgui_impl_sdl2.h"
+#include "backends/imgui_impl_opengl3.h"
+
 // Engine
-#include "../include/config.hpp"
-#include "../include/shader.hpp"
-#include "../include/chunk.hpp"
-#include "../include/helper.hpp"
+#include "config.hpp"
+#include "shader.hpp"
+#include "chunk.hpp"
+#include "helper.hpp"
+#include "ui.hpp"
+#include "entity.hpp"
 
 using namespace std;
 
@@ -29,51 +36,99 @@ GLuint attribute_coord3d, attribute_texcoord;
 GLint uniform_fade;
 GLint uniform_mvp;
 
-vector<Chunk> chunks;
+vector<vector<vector<Chunk>>> chunks;
+vector<Entity> entities;
 
-Chunk chunk;
-
-using namespace reactphysics3d;
-
-PhysicsCommon physicsCommon;
-PhysicsWorld* world = physicsCommon.createPhysicsWorld();
+rp3d::PhysicsCommon physicsCommon;
+rp3d::PhysicsWorld* world = physicsCommon.createPhysicsWorld();
 
 int screen_width = 1280;
 int screen_height = 720;
 
+UIData ui;
+
+TTF_Font* Sans;
+
 bool init_resources() {
-	for(int j = 0; j < 1; j++) {
-		chunks.push_back(Chunk());
-		if(j > 0) {
-			chunks[j - 1].adjacent_chunks[2] = &chunks[j];
-			chunks[j].adjacent_chunks[3] = &chunks[j - 1];
+	if (TTF_Init() < 0) {
+			fprintf(stderr, "Couldn't initialize TTF: %s\n",SDL_GetError());
+			return false;
 		}
-		for(int y = 0; y < CHUNK_SIZE; y++) {
-			for(int z = 0; z < CHUNK_SIZE; z++) {
-				for(int x = 0; x < CHUNK_SIZE; x++) {
-					chunks[j].blocks[x][y][z].type = BlockType::AIR;
+
+	Sans = TTF_OpenFont("./res/fonts/NotoSans-Regular.ttf", 12);
+
+	if(Sans == NULL) {
+		fprintf(stderr, "Failed to load font: %s\n", SDL_GetError());
+		return false;
+	}
+
+	chunks.reserve(LOAD_DISTANCE);
+	for(int x = 0; x < LOAD_DISTANCE; x++) {
+		chunks[x].reserve(WORD_HEIGHT);
+		for(int y = 0; y < WORD_HEIGHT; y++) {
+			chunks[x][y].reserve(LOAD_DISTANCE);
+			for(int z = 0; z < LOAD_DISTANCE; z++) {
+				chunks[x][y][z] = Chunk();
+				chunks[x][y][z].x = x;
+				chunks[x][y][z].y = y;
+				chunks[x][y][z].z = z;
+
+				for(int by = 0; by < CHUNK_SIZE; by++) {
+					for(int bz = 0; bz < CHUNK_SIZE; bz++) {
+						for(int bx = 0; bx < CHUNK_SIZE; bx++) {
+							if(round(sin(bz*M_1_PI) * 2.0f) + 2 >= by) {
+								chunks[x][y][z].blocks[bx][by][bz].type = BlockType::DIRT;
+								if(round(sin(bz*M_1_PI) * 2.0f) + 2 == by) chunks[x][y][z].blocks[bx][by][bz].type = BlockType::GRASS;
+							}else chunks[x][y][z].blocks[bx][by][bz].type = BlockType::AIR;
+						}
+					}
 				}
 			}
 		}
-
-		chunks[j].x = j;
 	}
 
-	chunks[0].blocks[8][8][8].type = BlockType::DIRT;
-	
-	for(auto& chunk : chunks) {
-		chunk.updateMesh(&physicsCommon, world);
-		printf("Chunk X: %i Y: %i Z: %i Faces: %li\n", chunk.x, chunk.y, chunk.z, chunk.indices.size()/6);
+	for(int x = 0; x < LOAD_DISTANCE; x++) {
+		for(int y = 0; y < WORD_HEIGHT; y++) {
+			for(int z = 0; z < LOAD_DISTANCE; z++) {
+				if(z > 0) chunks[x][y][z].adjacent_chunks[5] = &chunks[x][y][z - 1];
+				if(z < CHUNK_SIZE - 1) chunks[x][y][z].adjacent_chunks[4] = &chunks[x][y][z + 1];
+				if(x > 0) chunks[x][y][z].adjacent_chunks[2] = &chunks[x - 1][y][z];
+				for(int a = 0; a < x; a++) {
+					chunks[x][y][z].blocks[a][8][8].type = BlockType::GRASS;
+				}
+				/*if(y > 0) chunks[x][y][z].adjacent_chunks[1] = &chunks[x][y - 1][z];
+				if(z > 0) chunks[x][y][z].adjacent_chunks[5] = &chunks[x][y][z - 1];
+
+				if(x < CHUNK_SIZE - 1) chunks[x][y][z].adjacent_chunks[3] = &chunks[x + 1][y][z];
+				if(y < CHUNK_SIZE - 1) chunks[x][y][z].adjacent_chunks[0] = &chunks[x][y + 1][z];
+				*/
+				
+				chunks[x][y][z].updateMesh(&physicsCommon, world);
+				printf("Chunk X: %i Y: %i Z: %i Faces: %li\n", chunks[x][y][z].x, chunks[x][y][z].y, chunks[x][y][z].z, chunks[x][y][z].indices.size()/6);
+			}
+		}
 	}
 
-	SDL_Surface* res_texture = IMG_Load("res/textures/texture.png");
+	/*printf("hi %li \n", chunks[0][0][0].vertices.size());
+
+	for(auto& yz_chunks : chunks) {
+		for(auto& z_chunks : yz_chunks) {
+			for(auto& chunk : z_chunks) {
+				chunk.updateMesh(&physicsCommon, world);
+				printf("Chunk X: %i Y: %i Z: %i Faces: %li\n", chunk.x, chunk.y, chunk.z, chunk.indices.size()/6);
+			}
+		}
+	}*/
+
+	SDL_Surface* res_texture = IMG_Load("res/textures/atlas.png");
 	if (res_texture == NULL) {
 		cerr << "IMG_Load: " << SDL_GetError() << endl;
 		return false;
 	}
 	glGenTextures(1, &texture_id);
 	glBindTexture(GL_TEXTURE_2D, texture_id);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glTexImage2D(GL_TEXTURE_2D, // target
 		0, // level, 0 = base, no minimap,
 		GL_RGBA, // internalformat
@@ -84,8 +139,6 @@ bool init_resources() {
 		GL_UNSIGNED_BYTE, // type
 		res_texture->pixels);
 	SDL_FreeSurface(res_texture);
-
-
 
 	GLint link_ok = GL_FALSE;
 	
@@ -122,7 +175,14 @@ bool init_resources() {
 	return true;
 }
 
-glm::vec3 offset = glm::vec3(0, 0, 0);
+void setup() {
+	entities.push_back({
+		type: EntityType::Player,
+		name: (char*)"Player"
+	});
+}
+
+glm::vec3 offset = glm::vec3(-1, -5, -1);
 glm::vec3 vel;
 glm::vec2 look_dir;
 
@@ -130,32 +190,41 @@ glm::mat4 camera_transform = glm::mat4(1.0f);
 
 float last_time = 0;
 float dt = 0;
-bool m_left, m_right, m_up, m_down = false;
+bool m_left, m_right, m_up, m_down, m_shift, m_space = false;
 
 glm::quat orientation = glm::quat(glm::vec3(0.0f, 0.0f, 0.0f));
+
+void player_logic(Entity* player, float dt) {
+	player->velocity = glm::vec3(0.0f);
+	if(m_up) player->velocity.z = MOVE_SPEED;
+	if(m_down) player->velocity.z = -MOVE_SPEED;
+	if(m_left) player->velocity.x = MOVE_SPEED;
+	if(m_right) player->velocity.x = -MOVE_SPEED;
+	if(m_space) player->velocity.y = -MOVE_SPEED;
+	if(m_shift) player->velocity.y = MOVE_SPEED;
+
+	player->position += glm::rotate(glm::inverse(orientation), V3FORWARD) * player->velocity.z * dt;
+	player->position += V3UP * player->velocity.y * dt;
+	player->position += glm::rotate(glm::inverse(orientation), V3RIGHT) * player->velocity.x * dt;
+}
 
 void logic() {
 	dt = SDL_GetTicks() - last_time;
 	world->update(dt / 1000.0f);
 	last_time = SDL_GetTicks();
 
-	vel = glm::vec3(0, 0, 0);
-
-	if(m_up) {
-		vel.z = MOVE_SPEED;
-	}
-	if(m_down) {
-		vel.z = -MOVE_SPEED;
-	}
-	if(m_left) {
-		vel.x = MOVE_SPEED;
-	}
-	if(m_right) {
-		vel.x = -MOVE_SPEED;
+	for(Entity& entity : entities) {
+		if(!entity.is_owned) continue;
+		switch (entity.type) {
+			case EntityType::Player:
+				player_logic(&entity, dt);
+				offset = entity.position;
+				break;
+		}
 	}
 
-	offset += glm::rotate(glm::inverse(orientation), V3FORWARD) * vel.z;
-	offset += glm::rotate(glm::inverse(orientation), V3RIGHT) * vel.x;
+	ui.pos = -offset;
+	ui.look_dir = look_dir;
 
 	// const Transform& transform = body->getTransform();
     // const Vector3& position = transform.getPosition();
@@ -165,7 +234,7 @@ void logic() {
 	glm::vec3 axis_y(0, 1, 0);
 	//glm::mat4 anim = glm::rotate(glm::mat4(1.0f), glm::radians(angle), axis_y);
 	
-	glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(-8, -16, -8));
+	glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(0, -2, 0));
 	glm::mat4 view = glm::translate(glm::mat4(1.0), glm::vec3(0.0));
 
 	glm::quat pitch = glm::angleAxis(look_dir.y, V3RIGHT);
@@ -187,47 +256,53 @@ void logic() {
 
 }
 
-void render(SDL_Window* window) {
+void render(SDL_Renderer* renderer, SDL_Window* window) {
 	/* Clear the background as white */
 	glClearColor(0.1, 0.1, 0.1, 1.0);
 	glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
 
 	glUseProgram(program);
 
-	for(auto& chunk : chunks) {
-		//printf("Chunk: %i %i %li\n", chunk.x, chunk.y, chunk.indices.size());
-		glEnableVertexAttribArray(attribute_coord3d);
-		glBindBuffer(GL_ARRAY_BUFFER, chunk.vbo_vertices);
-		glVertexAttribPointer(
-			attribute_coord3d,
-			3,
-			GL_FLOAT,
-			GL_FALSE,
-			sizeof(Vertex),
-			0 // offset of the first element
-		);
+	for(int x = 0; x < LOAD_DISTANCE; x++) {
+		for(int y = 0; y < WORD_HEIGHT; y++) {
+			for(int z = 0; z < LOAD_DISTANCE; z++) {
+				//printf("Chunk: %i %i %li\n", chunk.x, chunk.y, chunk.indices.size());
+				glEnableVertexAttribArray(attribute_coord3d);
+				glBindBuffer(GL_ARRAY_BUFFER, chunks[x][y][z].vbo_vertices);
+				glVertexAttribPointer(
+					attribute_coord3d,
+					3,
+					GL_FLOAT,
+					GL_FALSE,
+					sizeof(Vertex),
+					0 // offset of the first element
+				);
 
-		glActiveTexture(GL_TEXTURE0);
-		glUniform1i(uniform_mytexture, /*GL_TEXTURE*/0);
-		glBindTexture(GL_TEXTURE_2D, texture_id);
+				glActiveTexture(GL_TEXTURE0);
+				glUniform1i(uniform_mytexture, /*GL_TEXTURE*/0);
+				glBindTexture(GL_TEXTURE_2D, texture_id);
 
-		glEnableVertexAttribArray(attribute_texcoord);
-		glBindBuffer(GL_ARRAY_BUFFER, chunk.vbo_vertices);
-		glVertexAttribPointer(
-			attribute_texcoord, // attribute
-			2,                  // number of elements per vertex, here (x,y)
-			GL_FLOAT,           // the type of each element
-			GL_FALSE,           // take our values as-is
-			5 * sizeof(GLfloat),                  // no extra data between each position
-			(GLvoid*) (3 * sizeof(GLfloat))                   // offset of first element
-		);
+				glEnableVertexAttribArray(attribute_texcoord);
+				glBindBuffer(GL_ARRAY_BUFFER, chunks[x][y][z].vbo_vertices);
+				glVertexAttribPointer(
+					attribute_texcoord, // attribute
+					2,                  // number of elements per vertex, here (x,y)
+					GL_FLOAT,           // the type of each element
+					GL_FALSE,           // take our values as-is
+					5 * sizeof(GLfloat),                  // no extra data between each position
+					(GLvoid*) (3 * sizeof(GLfloat))                   // offset of first element
+				);
 
-		
-		/* Push each element in buffer_vertices to the vertex shader */
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, chunk.ibo_elements);
-		int size;  glGetBufferParameteriv(GL_ELEMENT_ARRAY_BUFFER, GL_BUFFER_SIZE, &size);
-		glDrawElements(GL_TRIANGLES, size/sizeof(GLushort), GL_UNSIGNED_SHORT, 0);
+				
+				/* Push each element in buffer_vertices to the vertex shader */
+				glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, chunks[x][y][z].ibo_elements);
+				int size;  glGetBufferParameteriv(GL_ELEMENT_ARRAY_BUFFER, GL_BUFFER_SIZE, &size);
+				glDrawElements(GL_TRIANGLES, size/sizeof(GLushort), GL_UNSIGNED_SHORT, 0);
+			}
+		}
 	}
+
+	render_ui(ui);
 
 	/* Display the result */
 	SDL_GL_SwapWindow(window);
@@ -243,7 +318,9 @@ void onResize(int width, int height) {
 void free_resources() {
 	glDeleteProgram(program);
 	glDeleteTextures(1, &texture_id);
-	chunk.destroy();
+	
+	ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplSDL2_Shutdown();
 }
 
 void check_input(SDL_Scancode code, bool val) {
@@ -260,19 +337,31 @@ void check_input(SDL_Scancode code, bool val) {
 		case SDL_SCANCODE_D:
 			m_right = val;
 			break;
+		case SDL_SCANCODE_LSHIFT:
+			m_shift = val;
+			break;
+		case SDL_SCANCODE_SPACE:
+			m_space = val;
+			break;
+		case SDL_SCANCODE_F3:
+			if(val) ui.f3 = !ui.f3;
+			break;
 		default: break;
 	}
 }
 
 void look(int x, int y) {
 	look_dir.x += (float)x * LOOK_SPEED;
-	look_dir.y = max(min((float)y * LOOK_SPEED + look_dir.y, 90.0f), -90.0f);
+	// Prevent massive look numbers
+	look_dir.x = (abs(look_dir.x) > 2 * M_PI) ? abs(look_dir.x) - 2 * M_PI : look_dir.x;
+	look_dir.y = max(min((float)y * LOOK_SPEED + look_dir.y, M_PI_2f), -M_PI_2f);
 }
 
-void mainLoop(SDL_Window* window) {
+void mainLoop(SDL_Renderer* renderer, SDL_Window* window, ImGuiIO& io) {
 	while (true) {
 		SDL_Event ev;
 		while (SDL_PollEvent(&ev)) {
+			ImGui_ImplSDL2_ProcessEvent(&ev);
 			switch(ev.type) {
 				case SDL_QUIT:
 					return;
@@ -281,21 +370,25 @@ void mainLoop(SDL_Window* window) {
 						onResize(ev.window.data1, ev.window.data2);
 					break;
 				case SDL_KEYDOWN:
-					check_input(ev.key.keysym.scancode, true);
 					if(ev.key.keysym.scancode == SDL_SCANCODE_ESCAPE) {
 						SDL_SetWindowMouseGrab(window, SDL_FALSE);
 						SDL_SetRelativeMouseMode(SDL_FALSE);
 					}
+					if(io.WantCaptureKeyboard) break;
+					check_input(ev.key.keysym.scancode, true);
 					break;
 				case SDL_KEYUP:
+					if(io.WantCaptureKeyboard) break;
 					check_input(ev.key.keysym.scancode, false);
 					break;
 				case SDL_MOUSEBUTTONDOWN:
+					if(io.WantCaptureMouse) break;
 					SDL_SetWindowMouseGrab(window, SDL_TRUE);
 					SDL_SetRelativeMouseMode(SDL_TRUE);
 					SDL_SetCursor(NULL);
 					break;
 				case SDL_MOUSEMOTION:
+					if(io.WantCaptureMouse) break;
 					look(ev.motion.xrel, ev.motion.yrel);
 					break;
 				default:
@@ -303,7 +396,7 @@ void mainLoop(SDL_Window* window) {
 			}
 		}
 		logic();
-		render(window);
+		render(renderer, window);
 	}
 }
 
@@ -312,10 +405,13 @@ int main(int argc, char* argv[]) {
 
 	/* SDL-related initialising functions */
 	SDL_Init(SDL_INIT_VIDEO);
-	SDL_Window* window = SDL_CreateWindow("Block",
-		SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+	SDL_Window* window;
+	SDL_Renderer* renderer;
+
+	SDL_CreateWindowAndRenderer(
 		screen_width, screen_height,
-		SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL | SDL_WINDOW_ALLOW_HIGHDPI);
+		SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL | SDL_WINDOW_ALLOW_HIGHDPI,
+		&window, &renderer);
 	if (window == NULL)
 	{
 		cerr << "Error: can't create window: " << SDL_GetError() << endl;
@@ -324,12 +420,13 @@ int main(int argc, char* argv[]) {
 
 	SDL_SetHint(SDL_HINT_RENDER_VSYNC, "1");
 	
-	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-	//SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
 	//SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
 	//SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 1);
 
-	if (SDL_GL_CreateContext(window) == NULL)
+	auto context = SDL_GL_CreateContext(window);
+	if (context == NULL)
 	{
 		cerr << "Error: SDL_GL_CreateContext: " << SDL_GetError() << endl;
 		return EXIT_FAILURE;
@@ -353,6 +450,17 @@ int main(int argc, char* argv[]) {
 	glEnable(GL_BLEND);
 	glEnable(GL_CULL_FACE);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glEnable(GL_MIPMAP);
+
+	IMGUI_CHECKVERSION();
+	ImGui::CreateContext();
+	ImGuiIO& io = ImGui::GetIO();
+	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+	io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+
+	// Setup Platform/Renderer backends
+	ImGui_ImplSDL2_InitForOpenGL(window, context);
+	ImGui_ImplOpenGL3_Init("#version 330 core");
 
 
 	/* When all init functions run without errors,
@@ -361,7 +469,8 @@ int main(int argc, char* argv[]) {
 		return EXIT_FAILURE;
 
 	/* We can display something if everything goes OK */
-	mainLoop(window);
+	setup();
+	mainLoop(renderer, window, io);
 
 	/* If the program exits in the usual way,
 	   free resources and exit with a success */

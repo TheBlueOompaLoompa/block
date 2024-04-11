@@ -4,13 +4,14 @@ project(Block)
 
 file(COPY res DESTINATION .)
 
-set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -lGL -lSDL2_image -O2 -g")
+set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -lGL -lSDL2_image -lSDL2_ttf -ldl -O2 -g")
 
 INCLUDE(FindPkgConfig)
 
 PKG_SEARCH_MODULE(SDL2 REQUIRED sdl2)
 PKG_SEARCH_MODULE(SDL2IMAGE REQUIRED SDL2_image>=2.0.0)
-include_directories(${SDL2_INCLUDE_DIRS} ${SDL2IMAGE_INCLUDE_DIRS})
+PKG_SEARCH_MODULE(SDL2TTF REQUIRED SDL2_ttf>=2.0.0)
+include_directories(${SDL2_INCLUDE_DIRS} ${SDL2IMAGE_INCLUDE_DIRS} ${SDL2TTF_INCLUDE_DIRS})
 
 include_directories(${PROJECT_SOURCE_DIR})
 
@@ -25,12 +26,19 @@ include_directories(${GLM_INCLUDE_DIRS})
 
 find_package (ReactPhysics3D REQUIRED)
 
-file(GLOB SOURCES src/*.cpp)
-add_executable(mblock ${SOURCES})
+file(GLOB IMGUI_SOURCES lib/imgui/*.cpp)
+set(IMGUI_BACKEND_SOURCES
+    lib/imgui/backends/imgui_impl_sdl2.cpp
+    lib/imgui/backends/imgui_impl_opengl3.cpp
+)
 
-target_link_libraries(mblock ${SDL2_LIBRARIES} ${SDL2IMAGE_LIBRARY} ${GLEW_LIBRARIES} ${OPENGL_gl_LIBRARY} glm::glm ReactPhysics3D::ReactPhysics3D)
+file(GLOB SOURCES src/*.cpp)
+add_executable(mblock ${SOURCES} ${IMGUI_SOURCES} ${IMGUI_BACKEND_SOURCES})
+
+target_link_libraries(mblock ${SDL2_LIBRARIES} ${SDL2IMAGE_LIBRARY} ${SDL2TTF_LIBRARY} ${GLEW_LIBRARIES} ${OPENGL_gl_LIBRARY} glm::glm ReactPhysics3D::ReactPhysics3D)
 
 target_include_directories(mblock PUBLIC ${PROJECT_SOURCE_DIR}/include)
+target_include_directories(mblock PRIVATE lib/imgui)
 
 add_custom_command(
     TARGET mblock
