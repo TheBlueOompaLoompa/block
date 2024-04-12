@@ -66,7 +66,7 @@ bool init_resources() {
 
 	// WORLD GEN
 
-	GLuint height_map = gen_height_map(CHUNK_SIZE, 0, 0, LOAD_DISTANCE, LOAD_DISTANCE);
+	//GLuint height_map = gen_height_map(CHUNK_SIZE, 0, 0, LOAD_DISTANCE, LOAD_DISTANCE);
 
 	chunks.reserve(LOAD_DISTANCE);
 	for(int x = 0; x < LOAD_DISTANCE; x++) {
@@ -147,24 +147,8 @@ bool init_resources() {
 		res_texture->pixels);
 	SDL_FreeSurface(res_texture);
 
-	GLint link_ok = GL_FALSE;
-	
-	GLuint vs, fs;
-
-	if(
-		(vs = create_shader("res/shaders/cube.v.glsl", GL_VERTEX_SHADER)) == 0 || 
-		(fs = create_shader("res/shaders/cube.f.glsl", GL_FRAGMENT_SHADER)) == 0
-	) { return false; }
-
-	program = glCreateProgram();
-	glAttachShader(program, vs);
-	glAttachShader(program, fs);
-	glLinkProgram(program);
-	glGetProgramiv(program, GL_LINK_STATUS, &link_ok);
-	if (!link_ok) {
-		cerr << "Error in glLinkProgram" << endl;
-		return false;
-	}
+	create_program("res/shaders/cube.v.glsl", "res/shaders/cube.f.glsl", &program);
+	if(program == 0) { return false; }
 	
 	if(
 		!bind_attrib(&attribute_coord3d, program, "coord3d") ||

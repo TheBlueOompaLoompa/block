@@ -1,9 +1,7 @@
 #pragma once
 #include <GL/glew.h>
 
-GLuint gen_height_map(int chunk_size, int x, int y, int width, int height) {
-    
-
+GLuint gen_height_map(GLuint height_shader, int chunk_size, int x, int y, int width, int height) {
     GLuint fbuf;
     glGenFramebuffers(1, &fbuf);
     glBindFramebuffer(GL_FRAMEBUFFER, fbuf);
