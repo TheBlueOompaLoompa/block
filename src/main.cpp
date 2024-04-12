@@ -26,6 +26,7 @@
 #include "helper.hpp"
 #include "ui.hpp"
 #include "entity.hpp"
+#include "worldgen.hpp"
 
 using namespace std;
 
@@ -61,6 +62,11 @@ bool init_resources() {
 		fprintf(stderr, "Failed to load font: %s\n", SDL_GetError());
 		return false;
 	}
+
+
+	// WORLD GEN
+
+	GLuint height_map = gen_height_map(CHUNK_SIZE, 0, 0, LOAD_DISTANCE, LOAD_DISTANCE);
 
 	chunks.reserve(LOAD_DISTANCE);
 	for(int x = 0; x < LOAD_DISTANCE; x++) {
@@ -129,6 +135,7 @@ bool init_resources() {
 	glBindTexture(GL_TEXTURE_2D, texture_id);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
 	glTexImage2D(GL_TEXTURE_2D, // target
 		0, // level, 0 = base, no minimap,
 		GL_RGBA, // internalformat
@@ -178,11 +185,12 @@ bool init_resources() {
 void setup() {
 	entities.push_back({
 		type: EntityType::Player,
-		name: (char*)"Player"
+		name: (char*)"Player",
+		position: glm::vec3(0.0f, 16.0f*16.0f, 0.0f),
 	});
 }
 
-glm::vec3 offset = glm::vec3(-1, -5, -1);
+glm::vec3 offset = glm::vec3(0.0f);
 glm::vec3 vel;
 glm::vec2 look_dir;
 
@@ -194,7 +202,7 @@ bool m_left, m_right, m_up, m_down, m_shift, m_space = false;
 
 glm::quat orientation = glm::quat(glm::vec3(0.0f, 0.0f, 0.0f));
 
-void player_logic(Entity* player, float dt) {
+void player_logic(Entity* player) {
 	player->velocity = glm::vec3(0.0f);
 	if(m_up) player->velocity.z = MOVE_SPEED;
 	if(m_down) player->velocity.z = -MOVE_SPEED;
@@ -203,9 +211,9 @@ void player_logic(Entity* player, float dt) {
 	if(m_space) player->velocity.y = -MOVE_SPEED;
 	if(m_shift) player->velocity.y = MOVE_SPEED;
 
-	player->position += glm::rotate(glm::inverse(orientation), V3FORWARD) * player->velocity.z * dt;
-	player->position += V3UP * player->velocity.y * dt;
-	player->position += glm::rotate(glm::inverse(orientation), V3RIGHT) * player->velocity.x * dt;
+	player->position -= glm::rotate(glm::inverse(orientation), V3FORWARD) * player->velocity.z * dt;
+	player->position -= V3UP * player->velocity.y * dt;
+	player->position -= glm::rotate(glm::inverse(orientation), V3RIGHT) * player->velocity.x * dt;
 }
 
 void logic() {
@@ -213,18 +221,23 @@ void logic() {
 	world->update(dt / 1000.0f);
 	last_time = SDL_GetTicks();
 
+	ui.fps += 1.0f/(dt/1000.0f);
+	ui.fps /= 2.0f;
+
 	for(Entity& entity : entities) {
 		if(!entity.is_owned) continue;
 		switch (entity.type) {
 			case EntityType::Player:
-				player_logic(&entity, dt);
-				offset = entity.position;
+				player_logic(&entity);
+				entity.orientation = orientation;
+				offset = -entity.position;
+				ui.pos = entity.position;
 				break;
 		}
 	}
 
-	ui.pos = -offset;
 	ui.look_dir = look_dir;
+	ui.rot = glm::eulerAngles(orientation);
 
 	// const Transform& transform = body->getTransform();
     // const Vector3& position = transform.getPosition();
@@ -257,6 +270,9 @@ void logic() {
 }
 
 void render(SDL_Renderer* renderer, SDL_Window* window) {
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glDrawBuffer(GL_BACK);
+
 	/* Clear the background as white */
 	glClearColor(0.1, 0.1, 0.1, 1.0);
 	glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
@@ -266,7 +282,6 @@ void render(SDL_Renderer* renderer, SDL_Window* window) {
 	for(int x = 0; x < LOAD_DISTANCE; x++) {
 		for(int y = 0; y < WORD_HEIGHT; y++) {
 			for(int z = 0; z < LOAD_DISTANCE; z++) {
-				//printf("Chunk: %i %i %li\n", chunk.x, chunk.y, chunk.indices.size());
 				glEnableVertexAttribArray(attribute_coord3d);
 				glBindBuffer(GL_ARRAY_BUFFER, chunks[x][y][z].vbo_vertices);
 				glVertexAttribPointer(
@@ -412,18 +427,22 @@ int main(int argc, char* argv[]) {
 		screen_width, screen_height,
 		SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL | SDL_WINDOW_ALLOW_HIGHDPI,
 		&window, &renderer);
+	SDL_SetWindowTitle(window, GAME_TITLE);
+
 	if (window == NULL)
 	{
 		cerr << "Error: can't create window: " << SDL_GetError() << endl;
 		return EXIT_FAILURE;
 	}
 
-	SDL_SetHint(SDL_HINT_RENDER_VSYNC, "1");
+	SDL_SetHint(SDL_HINT_APP_NAME, GAME_TITLE);
+
+	SDL_SetHint(SDL_HINT_RENDER_VSYNC, "0");
 	
-	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
-	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
-	//SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-	//SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 1);
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+	SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 1);
 
 	auto context = SDL_GL_CreateContext(window);
 	if (context == NULL)
@@ -431,6 +450,8 @@ int main(int argc, char* argv[]) {
 		cerr << "Error: SDL_GL_CreateContext: " << SDL_GetError() << endl;
 		return EXIT_FAILURE;
 	}
+
+	glewExperimental = true;
 
 	/* Extension wrangler initialising */
 	GLenum glew_status = glewInit();
@@ -440,17 +461,18 @@ int main(int argc, char* argv[]) {
 		return EXIT_FAILURE;
 	}
 
-	if (!GLEW_VERSION_3_3)
+	if (!GLEW_VERSION_3_1)
 	{
-		cerr << "Error: your graphic card does not support OpenGL 3.3" << endl;
+		cerr << "Error: your graphic card does not support OpenGL 3.1" << endl;
 		return EXIT_FAILURE;
 	}
 
+	//glGenFramebuffers(1, 0);
+
 	glEnable(GL_DEPTH_TEST);
+	glDepthFunc(GL_LESS);
 	glEnable(GL_BLEND);
 	glEnable(GL_CULL_FACE);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	glEnable(GL_MIPMAP);
 
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();

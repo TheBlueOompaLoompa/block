@@ -20,7 +20,6 @@ struct Chunk {
 
     GLuint vbo_vertices;
     GLuint ibo_elements;
-    GLuint vbo_texcoords;
 
     std::vector<Vertex> vertices;
     std::vector<GLushort> indices;
@@ -72,12 +71,12 @@ struct Chunk {
     // TODO: Fix adjacent chunk block detection
     // Returns true if opaque block is at pos
     bool chk_block(int ix, int iy, int iz) {
-        if(ix < 0) {
+        if(ix > CHUNK_SIZE - 1) {
             // Left adjacent chunk
             if(adjacent_chunks[2] == nullptr) return false;
             else return adjacent_chunks[2]->blocks[ix - CHUNK_SIZE][iy][iz].type != BlockType::AIR;
         }
-        else if(ix > CHUNK_SIZE - 1) {
+        else if(ix < 0) {
             // Right
             if(adjacent_chunks[3] == nullptr) return false;
             else return adjacent_chunks[3]->chk_block(ix + CHUNK_SIZE, iy, iz);

@@ -1,6 +1,5 @@
 #version 330 core
 
-in float instance;
 
 out vec4 FragColor;
 varying vec2 f_texcoord;
