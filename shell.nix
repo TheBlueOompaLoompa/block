@@ -26,5 +26,6 @@
       harfbuzz
       libwebp
       glib
+      pcre2
     ];
 }
