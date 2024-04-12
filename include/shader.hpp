@@ -39,6 +39,7 @@ GLuint create_shader(const char* filename, GLenum type) {
 	glShaderSource(res, 1, &source, NULL);
 	free((void*)source);
 	
+	printf("Compiling shader %s\n", filename);
 	glCompileShader(res);
 	GLint compile_ok = GL_FALSE;
 	glGetShaderiv(res, GL_COMPILE_STATUS, &compile_ok);

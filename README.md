@@ -17,5 +17,7 @@ chmod +x block
 
 - [x] First person camera
 - [ ] Texture atlas
+  - [x] Basic atlas by block type
+  - [ ] Side Atlas
 
 [Tutorial](https://en.wikibooks.org/wiki/OpenGL_Programming)

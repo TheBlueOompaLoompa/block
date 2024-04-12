@@ -11,6 +11,7 @@
       mesa
       SDL2
       SDL2_image
+      SDL2_ttf
       libtiff
       freetype
       wayland
@@ -21,6 +22,6 @@
       glslang
       zip
       gdb
-
+      mangohud
     ];
 }
