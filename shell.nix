@@ -23,5 +23,7 @@
       zip
       gdb
       mangohud
+      harfbuzz
+      libwebp
     ];
 }
