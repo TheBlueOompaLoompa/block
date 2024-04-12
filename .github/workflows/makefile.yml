@@ -12,7 +12,7 @@ jobs:
         nix_path: nixpkgs=channel:nixos-23.11
     - run: mkdir build
     - name: Build
-      run: nix-shell --run "cmake -S . -B ./build && cmake --build ./build && cd build && make"
+      run: nix-shell --run "cmake -S . -B ./build && cd build && make"
     - uses: actions/upload-artifact@v4
       with:
         name: Build
