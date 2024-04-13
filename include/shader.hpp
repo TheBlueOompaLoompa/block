@@ -83,9 +83,3 @@ bool bind_attrib(GLuint* loc, GLuint program, const char* attribute_name) {
 
 	return true;
 }
-
-struct Shader {
-	GLuint program;
-
-	
-}
