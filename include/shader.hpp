@@ -48,7 +48,7 @@ std::string parse_includes(const GLchar* source, const char* filename) {
 
 		if(std::strcmp(include_start_buf, "\n#include") == 0) {
 			int start = i - 7;
-			i += 3;
+			while(sauce[i - 1] != '"') { i++; }
 			
 			std::string path = "";
 			while(sauce[i] != '"') {
