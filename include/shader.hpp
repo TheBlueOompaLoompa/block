@@ -53,25 +53,28 @@ GLuint create_shader(const char* filename, GLenum type) {
 	return res;
 }
 
-void create_program(const char* vert_path, const char* frag_path, GLuint* program) {
+GLuint create_program(const char* vert_path, const char* frag_path) {
 	GLint link_ok = GL_FALSE;
 	
 	GLuint vs, fs;
+	GLuint program;
 
 	if(
 		(vs = create_shader(vert_path, GL_VERTEX_SHADER)) == 0 || 
 		(fs = create_shader(frag_path, GL_FRAGMENT_SHADER)) == 0
-	) { *program = 0; }
+	) { program = 0; }
 
-	*program = glCreateProgram();
-	glAttachShader(*program, vs);
-	glAttachShader(*program, fs);
-	glLinkProgram(*program);
-	glGetProgramiv(*program, GL_LINK_STATUS, &link_ok);
+	program = glCreateProgram();
+	glAttachShader(program, vs);
+	glAttachShader(program, fs);
+	glLinkProgram(program);
+	glGetProgramiv(program, GL_LINK_STATUS, &link_ok);
 	if (!link_ok) {
 		std::cerr << "Error in glLinkProgram" << std::endl;
-		*program = 0;
+		program = 0;
 	}
+
+	return program;
 }
 
 bool bind_attrib(GLuint* loc, GLuint program, const char* attribute_name) {

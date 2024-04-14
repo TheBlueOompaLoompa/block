@@ -1,7 +1,7 @@
 #pragma once
 #include <GL/glew.h>
 
-GLuint gen_height_map(GLuint height_shader, int chunk_size, int x, int y, int width, int height) {
+GLuint gen_height_map(GLuint* height_program, int chunk_size, int x, int y, int width, int height) {
     GLuint fbuf;
     glGenFramebuffers(1, &fbuf);
     glBindFramebuffer(GL_FRAMEBUFFER, fbuf);
@@ -19,6 +19,12 @@ GLuint gen_height_map(GLuint height_shader, int chunk_size, int x, int y, int wi
     glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, render_texture, 0);
 
     GLenum draw_buffers[1] = {GL_COLOR_ATTACHMENT0};
+
+    if(*height_program == 0) return 0;
+
+    glUseProgram(*height_program);
+    
+
     glDrawBuffers(1, draw_buffers);
 
     if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)

@@ -27,13 +27,14 @@
 #include "ui.hpp"
 #include "entity.hpp"
 #include "worldgen.hpp"
+#include "preferences.hpp"
 
 using namespace std;
 
 GLuint program;
 GLuint texture_id, program_id;
 GLint uniform_mytexture;
-GLuint attribute_coord3d, attribute_texcoord;
+GLuint attribute_coord3d, attribute_texcoord, attribute_normal;
 GLint uniform_fade;
 GLint uniform_mvp;
 
@@ -43,12 +44,13 @@ vector<Entity> entities;
 rp3d::PhysicsCommon physicsCommon;
 rp3d::PhysicsWorld* world = physicsCommon.createPhysicsWorld();
 
-int screen_width = 1280;
-int screen_height = 720;
-
 UIData ui;
 
 TTF_Font* Sans;
+
+GLuint height_program = 0;
+
+Preferences prefs;
 
 bool init_resources() {
 	if (TTF_Init() < 0) {
@@ -66,7 +68,8 @@ bool init_resources() {
 
 	// WORLD GEN
 
-	//GLuint height_map = gen_height_map(CHUNK_SIZE, 0, 0, LOAD_DISTANCE, LOAD_DISTANCE);
+	//height_program = create_program("res/shaders/compute/compute.v.glsl", "res/shaders/compute/height.glsl");
+	//GLuint height_map = gen_height_map(&height_program, CHUNK_SIZE, 0, 0, LOAD_DISTANCE, LOAD_DISTANCE);
 
 	chunks.reserve(LOAD_DISTANCE);
 	for(int x = 0; x < LOAD_DISTANCE; x++) {
@@ -110,21 +113,9 @@ bool init_resources() {
 				*/
 				
 				chunks[x][y][z].updateMesh(&physicsCommon, world);
-				printf("Chunk X: %i Y: %i Z: %i Faces: %li\n", chunks[x][y][z].x, chunks[x][y][z].y, chunks[x][y][z].z, chunks[x][y][z].indices.size()/6);
 			}
 		}
 	}
-
-	/*printf("hi %li \n", chunks[0][0][0].vertices.size());
-
-	for(auto& yz_chunks : chunks) {
-		for(auto& z_chunks : yz_chunks) {
-			for(auto& chunk : z_chunks) {
-				chunk.updateMesh(&physicsCommon, world);
-				printf("Chunk X: %i Y: %i Z: %i Faces: %li\n", chunk.x, chunk.y, chunk.z, chunk.indices.size()/6);
-			}
-		}
-	}*/
 
 	SDL_Surface* res_texture = IMG_Load("res/textures/atlas.png");
 	if (res_texture == NULL) {
@@ -147,12 +138,13 @@ bool init_resources() {
 		res_texture->pixels);
 	SDL_FreeSurface(res_texture);
 
-	create_program("res/shaders/cube.v.glsl", "res/shaders/cube.f.glsl", &program);
+	program = create_program("res/shaders/cube.v.glsl", "res/shaders/cube.f.glsl");
 	if(program == 0) { return false; }
 	
 	if(
 		!bind_attrib(&attribute_coord3d, program, "coord3d") ||
-		!bind_attrib(&attribute_texcoord, program, "texcoord")
+		!bind_attrib(&attribute_texcoord, program, "texcoord") ||
+		!bind_attrib(&attribute_normal, program, "normal")
 	) { return false; }
 
 	const char* uniform_name;
@@ -166,11 +158,15 @@ bool init_resources() {
 	return true;
 }
 
+void apply_prefs(SDL_Window* window) {
+	SDL_SetWindowFullscreen(window, prefs.fullscreen ? SDL_WINDOW_FULLSCREEN : 0);
+}
+
 void setup() {
 	entities.push_back({
 		type: EntityType::Player,
 		name: (char*)"Player",
-		position: glm::vec3(0.0f, 16.0f*16.0f, 0.0f),
+		position: glm::vec3(0.0f, 16.0f*WORD_HEIGHT, 0.0f),
 	});
 }
 
@@ -194,10 +190,15 @@ void player_logic(Entity* player) {
 	if(m_right) player->velocity.x = -MOVE_SPEED;
 	if(m_space) player->velocity.y = -MOVE_SPEED;
 	if(m_shift) player->velocity.y = MOVE_SPEED;
+	ui.vel = player->velocity;
 
 	player->position -= glm::rotate(glm::inverse(orientation), V3FORWARD) * player->velocity.z * dt;
 	player->position -= V3UP * player->velocity.y * dt;
 	player->position -= glm::rotate(glm::inverse(orientation), V3RIGHT) * player->velocity.x * dt;
+	ui.pos = player->position;
+
+	player->orientation = orientation;
+	offset = -player->position;
 }
 
 void logic() {
@@ -213,15 +214,11 @@ void logic() {
 		switch (entity.type) {
 			case EntityType::Player:
 				player_logic(&entity);
-				entity.orientation = orientation;
-				offset = -entity.position;
-				ui.pos = entity.position;
 				break;
 		}
 	}
 
 	ui.look_dir = look_dir;
-	ui.rot = glm::eulerAngles(orientation);
 
 	// const Transform& transform = body->getTransform();
     // const Vector3& position = transform.getPosition();
@@ -244,7 +241,7 @@ void logic() {
 	view *= rotate;
 	view = glm::translate(view, offset);
 
-	glm::mat4 projection = glm::perspective(45.0f, 1.0f*screen_width/screen_height, 0.1f, 300.0f);
+	glm::mat4 projection = glm::perspective(45.0f, 1.0f*prefs.width/prefs.height, 0.1f, 300.0f);
 
 	glm::mat4 mvp = projection * view * model;
 
@@ -277,10 +274,6 @@ void render(SDL_Renderer* renderer, SDL_Window* window) {
 					0 // offset of the first element
 				);
 
-				glActiveTexture(GL_TEXTURE0);
-				glUniform1i(uniform_mytexture, /*GL_TEXTURE*/0);
-				glBindTexture(GL_TEXTURE_2D, texture_id);
-
 				glEnableVertexAttribArray(attribute_texcoord);
 				glBindBuffer(GL_ARRAY_BUFFER, chunks[x][y][z].vbo_vertices);
 				glVertexAttribPointer(
@@ -288,10 +281,25 @@ void render(SDL_Renderer* renderer, SDL_Window* window) {
 					2,                  // number of elements per vertex, here (x,y)
 					GL_FLOAT,           // the type of each element
 					GL_FALSE,           // take our values as-is
-					5 * sizeof(GLfloat),                  // no extra data between each position
+					sizeof(Vertex),                  // no extra data between each position
 					(GLvoid*) (3 * sizeof(GLfloat))                   // offset of first element
 				);
 
+				glEnableVertexAttribArray(attribute_normal);
+				glBindBuffer(GL_ARRAY_BUFFER, chunks[x][y][z].nbo_normals);
+				glVertexAttribPointer(
+					attribute_normal,
+					3,
+					GL_FLOAT,
+					GL_FALSE,
+					sizeof(glm::vec3),
+					(GLvoid*) 0
+				);
+
+
+				glActiveTexture(GL_TEXTURE0);
+				glUniform1i(uniform_mytexture, /*GL_TEXTURE*/0);
+				glBindTexture(GL_TEXTURE_2D, texture_id);
 				
 				/* Push each element in buffer_vertices to the vertex shader */
 				glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, chunks[x][y][z].ibo_elements);
@@ -301,16 +309,19 @@ void render(SDL_Renderer* renderer, SDL_Window* window) {
 		}
 	}
 
-	render_ui(ui);
+	if(render_ui(&ui, &prefs)) {
+		apply_prefs(window);
+	}
 
 	/* Display the result */
 	SDL_GL_SwapWindow(window);
 }
 
 void onResize(int width, int height) {
-	screen_width = width;
-	screen_height = height;
-	glViewport(0, 0, screen_width, screen_height);
+	prefs.width = width;
+	prefs.height = height;
+	
+	glViewport(0, 0, prefs.width, prefs.height);
 }
 
 
@@ -323,29 +334,25 @@ void free_resources() {
 }
 
 void check_input(SDL_Scancode code, bool val) {
-	switch(code) {
-		case SDL_SCANCODE_W:
-			m_up = val;
-			break;
-		case SDL_SCANCODE_A:
-			m_left = val;
-			break;
-		case SDL_SCANCODE_S:
-			m_down = val;
-			break;
-		case SDL_SCANCODE_D:
-			m_right = val;
-			break;
-		case SDL_SCANCODE_LSHIFT:
-			m_shift = val;
-			break;
-		case SDL_SCANCODE_SPACE:
-			m_space = val;
-			break;
-		case SDL_SCANCODE_F3:
-			if(val) ui.f3 = !ui.f3;
-			break;
-		default: break;
+	if(code == prefs.input.forward) {
+		m_up = val;
+	}else if(code == prefs.input.left) {
+		m_left = val;
+	}else if(code == prefs.input.backward) {
+		m_down = val;
+	}else if(code == prefs.input.right) {
+		m_right = val;
+	}else if(code == prefs.input.crouch) {
+		m_shift = val;
+	}else if(code == prefs.input.jump) {
+		m_space = val;
+	}else {
+		switch(code) {
+			case SDL_SCANCODE_F3:
+				if(val) { ui.f3 = !ui.f3; }
+				break;
+			default: break;
+		}
 	}
 }
 
@@ -370,8 +377,9 @@ void mainLoop(SDL_Renderer* renderer, SDL_Window* window, ImGuiIO& io) {
 					break;
 				case SDL_KEYDOWN:
 					if(ev.key.keysym.scancode == SDL_SCANCODE_ESCAPE) {
-						SDL_SetWindowMouseGrab(window, SDL_FALSE);
-						SDL_SetRelativeMouseMode(SDL_FALSE);
+						ui.esc = !ui.esc;
+						SDL_SetWindowMouseGrab(window, ui.esc ? SDL_FALSE : SDL_TRUE);
+						SDL_SetRelativeMouseMode(ui.esc ? SDL_FALSE : SDL_TRUE);
 					}
 					if(io.WantCaptureKeyboard) break;
 					check_input(ev.key.keysym.scancode, true);
@@ -394,6 +402,9 @@ void mainLoop(SDL_Renderer* renderer, SDL_Window* window, ImGuiIO& io) {
 					break;
 			}
 		}
+
+		if(ui.quit) { return; }
+
 		logic();
 		render(renderer, window);
 	}
@@ -408,7 +419,7 @@ int main(int argc, char* argv[]) {
 	SDL_Renderer* renderer;
 
 	SDL_CreateWindowAndRenderer(
-		screen_width, screen_height,
+		prefs.width, prefs.height,
 		SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL | SDL_WINDOW_ALLOW_HIGHDPI,
 		&window, &renderer);
 	SDL_SetWindowTitle(window, GAME_TITLE);

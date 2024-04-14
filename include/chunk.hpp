@@ -19,9 +19,11 @@ struct Chunk {
     Block blocks[CHUNK_SIZE][CHUNK_SIZE][CHUNK_SIZE]; // XYZ
 
     GLuint vbo_vertices;
+    GLuint nbo_normals;
     GLuint ibo_elements;
 
     std::vector<Vertex> vertices;
+    std::vector<glm::vec3> normals;
     std::vector<GLushort> indices;
 
     Chunk* adjacent_chunks[6]; // up down left right forward back
@@ -50,17 +52,19 @@ struct Chunk {
             }
         }
 
-        for(uint i = 0; i < vertices.size(); i++)
-        {
-            vertices[i].x += x * CHUNK_SIZE;
-            vertices[i].y += y * CHUNK_SIZE;
-            vertices[i].z += z * CHUNK_SIZE;
+        for(uint i = 0; i < vertices.size(); i++) {
+            vertices[i].pos += glm::vec3(x, y, z) * glm::vec3(CHUNK_SIZE);
         }
 
         glDeleteBuffers(1, &vbo_vertices);
         glGenBuffers(1, &vbo_vertices);
         glBindBuffer(GL_ARRAY_BUFFER, vbo_vertices);
         glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(Vertex), vertices.data(), GL_STATIC_DRAW);
+
+        glDeleteBuffers(1, &nbo_normals);
+        glGenBuffers(1, &nbo_normals);
+        glBindBuffer(GL_ARRAY_BUFFER, nbo_normals);
+        glBufferData(GL_ARRAY_BUFFER, normals.size() * sizeof(glm::vec3), normals.data(), GL_STATIC_DRAW);
 
         glDeleteBuffers(1, &ibo_elements);
         glGenBuffers(1, &ibo_elements);
@@ -109,7 +113,15 @@ struct Chunk {
         glm::vec3 dir = glm::cross(up, right) * glm::vec3(chkFlip ? 0 : (flip ? -1 : 1));
         if(chk_block(dir.x + sx, dir.y + sy, dir.z + sz)) return;
 
+        // TODO: Find a way to store the surface normal only once
+
         normal *= !chkFlip ? -1 : 1;
+
+        glm::vec3 surface_normal = normal;
+        normals.push_back(surface_normal);
+        normals.push_back(surface_normal);
+        normals.push_back(surface_normal);
+        normals.push_back(surface_normal);
 
         bool flip_y = false;
         bool flip_x = false;
@@ -125,32 +137,20 @@ struct Chunk {
         float atlas_offset = (float)block_type - 1;
 
         vertices.push_back({
-            x: (float)sx,
-            y: (float)sy,
-            z: (float)sz,
-            u: (flip_y ? 1.0f : 0.0f),
-            v: ((flip_x ? 1.0f : 0.0f) + atlas_offset) / ATLAS_TEX_COUNT
+            pos: glm::vec3((float)sx, (float)sy, (float)sz),
+            uv: glm::vec2((flip_y ? 1.0f : 0.0f), ((flip_x ? 1.0f : 0.0f) + atlas_offset) / ATLAS_TEX_COUNT)
         });
         vertices.push_back({
-            x: (float)(sx + right.x),
-            y: (float)(sy + right.y),
-            z: (float)(sz + right.z),
-            u: (flip_y ? 0.0f : 1.0f),
-            v: ((flip_x ? 1.0f : 0.0f) + atlas_offset) / ATLAS_TEX_COUNT
+            pos: glm::vec3((float)(sx + right.x), (float)(sy + right.y), (float)(sz + right.z)),
+            uv: glm::vec2((flip_y ? 0.0f : 1.0f), ((flip_x ? 1.0f : 0.0f) + atlas_offset) / ATLAS_TEX_COUNT)
         });
         vertices.push_back({
-            x: (float)(sx + right.x + up.x),
-            y: (float)(sy + right.y + up.y),
-            z: (float)(sz + right.z + up.z),
-            u: (flip_y ? 0.0f : 1.0f),
-            v: ((flip_x ? 0.0f : 1.0f) + atlas_offset) / ATLAS_TEX_COUNT
+            pos: glm::vec3((float)(sx + right.x + up.x), (float)(sy + right.y + up.y), (float)(sz + right.z + up.z)),
+            uv: glm::vec2((flip_y ? 0.0f : 1.0f), ((flip_x ? 0.0f : 1.0f) + atlas_offset) / ATLAS_TEX_COUNT)
         });
         vertices.push_back({
-            x: (float)(sx + up.x),
-            y: (float)(sy + up.y),
-            z: (float)(sz + up.z),
-            u: (flip_y ? 1.0f : 0.0f),
-            v: ((flip_x ? 0.0f : 1.0f) + atlas_offset) / ATLAS_TEX_COUNT
+            pos: glm::vec3((float)(sx + up.x), (float)(sy + up.y), (float)(sz + up.z)),
+            uv: glm::vec2((flip_y ? 1.0f : 0.0f), ((flip_x ? 0.0f : 1.0f) + atlas_offset) / ATLAS_TEX_COUNT)
         });
 
         if(flip) {

@@ -1,6 +1,8 @@
 #pragma once
 
+#include <glm/glm.hpp>
+
 struct Vertex {
-    float x, y, z;
-    float u, v;
+    glm::vec3 pos;
+    glm::vec2 uv;
 };

@@ -4,36 +4,82 @@
 
 #include "imgui.h"
 #include "helper.hpp"
+#include "preferences.hpp"
 
 struct UIData {
     bool f3;
+    bool esc;
+    bool quit = false;
 
     glm::vec3 pos;
-    glm::vec3 rot;
+    glm::vec3 vel;
     glm::vec2 look_dir;
     
     float fps = 60.0f;
 };
 
-void render_ui(UIData ui) {
+const char* CenterText(const char* text) {
+    float alignment = 0.5f;
+    ImGuiStyle& style = ImGui::GetStyle();
+
+    float size = ImGui::CalcTextSize(text).x + style.FramePadding.x * 2.0f;
+    float avail = ImGui::GetContentRegionAvail().x;
+
+    float off = (avail - size) * alignment;
+    if (off > 0.0f)
+        ImGui::SetCursorPosX(ImGui::GetCursorPosX() + off);
+    return text;
+}
+
+// Returns true if prefs changed
+bool render_ui(UIData* ui, Preferences *prefs) {
+    bool changed = false;
+
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplSDL2_NewFrame();
     ImGui::NewFrame();
 
-    if(ui.f3) {
-        ImGui::Begin("F3 Menu", &ui.f3, 
+    if(ui->f3) {
+        ImGui::Begin("F3 Menu", &ui->f3, 
             ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize |
             ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoFocusOnAppearing|
             ImGuiWindowFlags_NoInputs);
-        ImGui::Text("Position X %f Y %f Z %f", V3FMT(ui.pos));
-        glm::vec3 newrot = ui.rot/glm::vec3(M_PI/180.0f);
-        ImGui::Text("Rotation X %f Y %f Z %f", V3FMT(newrot));
-        ImGui::Text("Look dir X %f Y %f", V2FMT(ui.look_dir));
-        ImGui::Text("FPS %f", ui.fps);
+        ImGui::SetWindowFontScale(1.5f);
+        ImGui::Text("Position\nX %f\nY %f\nZ %f", V3FMT(ui->pos));
+        ImGui::Text("Velocity X %f Y %f Z %f", V3FMT(ui->vel));
+        ImGui::Text("Look dir X %f Y %f", V2FMT(ui->look_dir));
+        ImGui::Text("Window size %i %i", prefs->width, prefs->height);
+        ImGui::Text("FPS %f", ui->fps);
+        ImGui::End();
+    }
+
+    if(ui->esc) {
+        ImGui::Begin("Escape Menu", &ui->esc,
+            ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove);
+        ImGui::SetWindowFontScale(1.5f);
+
+        ImGui::SetWindowPos(ImVec2 { 0.0, 0.0 });
+        ImGui::SetWindowSize(ImVec2 { (float)prefs->width, (float)prefs->height });
+
+        if(ImGui::Button(CenterText("Back to Game"))) {
+            ui->esc = false;
+        }
+
+        if(ImGui::Button(CenterText("Toggle Fullscreen"))) {
+            prefs->fullscreen = !prefs->fullscreen;
+            changed = true;
+        }
+
+        if(ImGui::Button(CenterText("Quit"))) {
+            ui->quit = true;
+        }
+
         ImGui::End();
     }
 
 
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
+    return changed;
 }
