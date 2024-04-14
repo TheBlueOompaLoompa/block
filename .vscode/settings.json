@@ -59,5 +59,6 @@
         "cinttypes": "cpp",
         "typeinfo": "cpp",
         "cassert": "cpp"
-    }
+    },
+    "C_Cpp.default.compilerPath": "/nix/store/ihhhd1r1a2wb4ndm24rnm83rfnjw5n0z-gcc-wrapper-12.3.0/bin/g++"
 }
