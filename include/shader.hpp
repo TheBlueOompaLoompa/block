@@ -37,7 +37,7 @@ std::string parse_includes(const GLchar* source, const char* filename) {
 	auto file_path = std::filesystem::path(filename);
 
 	// Hold current search window
-	char include_start_buf[12] = "          ";
+	char include_start_buf[10] = "        ";
 
 	for(int i = 0; i < sauce.length(); i++) {
 		for(int x = 0; x < sizeof(include_start_buf) - 1; x++) {
@@ -46,8 +46,8 @@ std::string parse_includes(const GLchar* source, const char* filename) {
 
 		include_start_buf[sizeof(include_start_buf)-2] = sauce[i];
 
-		if(std::strcmp(include_start_buf, "\n//#include") == 0) {
-			int start = i - 9;
+		if(std::strcmp(include_start_buf, "\n#include") == 0) {
+			int start = i - 7;
 			i += 3;
 			
 			std::string path = "";
