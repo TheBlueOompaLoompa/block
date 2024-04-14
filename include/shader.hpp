@@ -3,6 +3,9 @@
  * source code to OpenGL.  Using SDL_RWops for Android asset support.
  */
 #include <GL/glew.h>
+#include <string.h>
+#include <filesystem>
+
 #include "util.hpp"
 #pragma once
 
@@ -28,16 +31,60 @@ void print_log(GLuint object) {
 	free(log);
 }
 
+// TODO: If needed add support for sub-dependencies
+std::string parse_includes(const GLchar* source, const char* filename) {
+	std::string sauce = std::string(source);
+	auto file_path = std::filesystem::path(filename);
+
+	// Hold current search window
+	char include_start_buf[12] = "          ";
+
+	for(int i = 0; i < sauce.length(); i++) {
+		for(int x = 0; x < sizeof(include_start_buf) - 1; x++) {
+			include_start_buf[x] = include_start_buf[x + 1];
+		}
+
+		include_start_buf[sizeof(include_start_buf)-2] = sauce[i];
+
+		if(std::strcmp(include_start_buf, "\n//#include") == 0) {
+			int start = i - 9;
+			i += 3;
+			
+			std::string path = "";
+			while(sauce[i] != '"') {
+				path += sauce[i];
+				i++;
+			}
+
+			file_path.replace_filename(path);
+			
+			const GLchar* include_source = file_read(file_path.c_str());
+			if (include_source == NULL) {
+				std::cerr << "Error opening " << file_path << " included in " << filename << ": " << SDL_GetError() << std::endl;
+				return sauce;
+			}
+
+			sauce.replace(start, i - start + 1, include_source);
+		}
+	}
+
+	return sauce;
+}
+
 GLuint create_shader(const char* filename, GLenum type) {
 	const GLchar* source = file_read(filename);
 	if (source == NULL) {
 		std::cerr << "Error opening " << filename << ": " << SDL_GetError() << std::endl;
 		return 0;
 	}
+
+	auto new_source = parse_includes(source, filename);
+	free((void*)source);
+
 	GLuint res = glCreateShader(type);
 
-	glShaderSource(res, 1, &source, NULL);
-	free((void*)source);
+	const char* const new_new_source = new_source.c_str();
+	glShaderSource(res, 1, &new_new_source, NULL);
 	
 	printf("Compiling shader %s\n", filename);
 	glCompileShader(res);

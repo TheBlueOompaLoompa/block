@@ -47,6 +47,8 @@
 // VERSION: 1.1.1
 // https://github.com/Auburn/FastNoiseLite
 
+#extension GL_ARB_shading_language_420pack : require
+
 // Switch between using floats or doubles for input position
 #define FNLfloat float
 //#define FNLfloat double

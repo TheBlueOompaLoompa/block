@@ -1,5 +1,6 @@
 #version 330 core
-//$../FastNoiseLite.glsl
+
+//#include "./FastNoiseLite.glsl"
 
 in vec2 UV;
 

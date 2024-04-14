@@ -68,7 +68,7 @@ bool init_resources() {
 
 	// WORLD GEN
 
-	//height_program = create_program("res/shaders/compute/compute.v.glsl", "res/shaders/compute/height.glsl");
+	height_program = create_program("res/shaders/compute/compute.v.glsl", "res/shaders/compute/height.glsl");
 	//GLuint height_map = gen_height_map(&height_program, CHUNK_SIZE, 0, 0, LOAD_DISTANCE, LOAD_DISTANCE);
 
 	chunks = vector<vector<vector<Chunk>>>(LOAD_DISTANCE);
