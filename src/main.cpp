@@ -71,13 +71,12 @@ bool init_resources() {
 	//height_program = create_program("res/shaders/compute/compute.v.glsl", "res/shaders/compute/height.glsl");
 	//GLuint height_map = gen_height_map(&height_program, CHUNK_SIZE, 0, 0, LOAD_DISTANCE, LOAD_DISTANCE);
 
-	chunks.reserve(LOAD_DISTANCE);
+	chunks = vector<vector<vector<Chunk>>>(LOAD_DISTANCE);
 	for(int x = 0; x < LOAD_DISTANCE; x++) {
-		chunks[x].reserve(WORD_HEIGHT);
+		chunks[x] = vector<vector<Chunk>>(WORD_HEIGHT);
 		for(int y = 0; y < WORD_HEIGHT; y++) {
-			chunks[x][y].reserve(LOAD_DISTANCE);
+			chunks[x][y] = vector<Chunk>(LOAD_DISTANCE);
 			for(int z = 0; z < LOAD_DISTANCE; z++) {
-				chunks[x][y][z] = Chunk();
 				chunks[x][y][z].x = x;
 				chunks[x][y][z].y = y;
 				chunks[x][y][z].z = z;
