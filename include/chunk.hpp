@@ -72,13 +72,12 @@ struct Chunk {
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(GLushort), indices.data(), GL_STATIC_DRAW);
     }
 
-    // TODO: Fix adjacent chunk block detection
     // Returns true if opaque block is at pos
     bool chk_block(int ix, int iy, int iz) {
         if(ix > CHUNK_SIZE - 1) {
             // Left adjacent chunk
             if(adjacent_chunks[2] == nullptr) return false;
-            else return adjacent_chunks[2]->blocks[ix - CHUNK_SIZE][iy][iz].type != BlockType::AIR;
+            else return adjacent_chunks[2]->chk_block(ix - CHUNK_SIZE, iy, iz);
         }
         else if(ix < 0) {
             // Right
@@ -88,22 +87,22 @@ struct Chunk {
         else if(iy > CHUNK_SIZE - 1) {
             // Above
             if(adjacent_chunks[0] == nullptr) return false;
-            else return adjacent_chunks[0]->blocks[ix][iy - CHUNK_SIZE][iz].type != BlockType::AIR;
+            else return adjacent_chunks[0]->chk_block(ix, iy - CHUNK_SIZE, iz);
         }
         else if(iy < 0) {
             // Below
             if(adjacent_chunks[1] == nullptr) return false;
-            else return adjacent_chunks[1]->blocks[ix][iy + CHUNK_SIZE][iz].type != BlockType::AIR;
+            else return adjacent_chunks[1]->chk_block(ix, iy + CHUNK_SIZE, iz);
         }
         else if(iz > CHUNK_SIZE - 1) {
             // Front
             if(adjacent_chunks[4] == nullptr) return false;
-            else return adjacent_chunks[4]->blocks[ix][iy][iz - CHUNK_SIZE].type != BlockType::AIR;
+            else return adjacent_chunks[4]->chk_block(ix, iy, iz - CHUNK_SIZE);
         }
         else if(iz < 0) {
             // Back
             if(adjacent_chunks[5] == nullptr) return false;
-            else return adjacent_chunks[5]->blocks[ix][iy][iz + CHUNK_SIZE].type != BlockType::AIR;
+            else return adjacent_chunks[5]->chk_block(ix, iy, iz + CHUNK_SIZE);
         }
         else return blocks[ix][iy][iz].type != BlockType::AIR;
     }

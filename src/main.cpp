@@ -28,6 +28,7 @@
 #include "entity.hpp"
 #include "worldgen.hpp"
 #include "preferences.hpp"
+#include "physics.hpp"
 
 using namespace std;
 
@@ -35,8 +36,8 @@ GLuint program;
 GLuint texture_id, program_id;
 GLint uniform_mytexture;
 GLuint attribute_coord3d, attribute_texcoord, attribute_normal;
-GLint uniform_fade;
 GLint uniform_mvp;
+GLint uniform_time;
 
 vector<vector<vector<Chunk>>> chunks;
 vector<Entity> entities;
@@ -69,7 +70,8 @@ bool init_resources() {
 	// WORLD GEN
 
 	height_program = create_program("res/shaders/compute/compute.v.glsl", "res/shaders/compute/height.glsl");
-	//GLuint height_map = gen_height_map(&height_program, CHUNK_SIZE, 0, 0, LOAD_DISTANCE, LOAD_DISTANCE);
+	GLuint height_map = gen_height_map(&height_program, CHUNK_SIZE, 0, 0, LOAD_DISTANCE, LOAD_DISTANCE);
+	printf("Height map texture id %i\n",height_map);
 
 	chunks = vector<vector<vector<Chunk>>>(LOAD_DISTANCE);
 	for(int x = 0; x < LOAD_DISTANCE; x++) {
@@ -81,12 +83,16 @@ bool init_resources() {
 				chunks[x][y][z].y = y;
 				chunks[x][y][z].z = z;
 
+				#define height_function floorf(((float)rand()/(float)RAND_MAX - .5f) * 2.0f)
+
 				for(int by = 0; by < CHUNK_SIZE; by++) {
 					for(int bz = 0; bz < CHUNK_SIZE; bz++) {
 						for(int bx = 0; bx < CHUNK_SIZE; bx++) {
-							if(round(sin(bz*M_1_PI) * 2.0f) + 2 >= by) {
+							if(y < WORD_HEIGHT*.9f) {
+								chunks[x][y][z].blocks[bx][by][bz].type = BlockType::DIRT;	
+							}else if(height_function >= by) {
 								chunks[x][y][z].blocks[bx][by][bz].type = BlockType::DIRT;
-								if(round(sin(bz*M_1_PI) * 2.0f) + 2 == by) chunks[x][y][z].blocks[bx][by][bz].type = BlockType::GRASS;
+								if(height_function == by) chunks[x][y][z].blocks[bx][by][bz].type = BlockType::GRASS;
 							}else chunks[x][y][z].blocks[bx][by][bz].type = BlockType::AIR;
 						}
 					}
@@ -95,23 +101,23 @@ bool init_resources() {
 		}
 	}
 
+	int tris = 0;
+
 	for(int x = 0; x < LOAD_DISTANCE; x++) {
 		for(int y = 0; y < WORD_HEIGHT; y++) {
 			for(int z = 0; z < LOAD_DISTANCE; z++) {
-				if(z > 0) chunks[x][y][z].adjacent_chunks[5] = &chunks[x][y][z - 1];
-				if(z < CHUNK_SIZE - 1) chunks[x][y][z].adjacent_chunks[4] = &chunks[x][y][z + 1];
-				if(x > 0) chunks[x][y][z].adjacent_chunks[2] = &chunks[x - 1][y][z];
-				for(int a = 0; a < x; a++) {
-					chunks[x][y][z].blocks[a][8][8].type = BlockType::GRASS;
-				}
-				/*if(y > 0) chunks[x][y][z].adjacent_chunks[1] = &chunks[x][y - 1][z];
-				if(z > 0) chunks[x][y][z].adjacent_chunks[5] = &chunks[x][y][z - 1];
+				if(x > 0) { chunks[x][y][z].adjacent_chunks[3] = &chunks[x - 1][y][z]; }
+				if(x + 1 < LOAD_DISTANCE) { chunks[x][y][z].adjacent_chunks[2] = &chunks[x + 1][y][z]; }
+				
+				if(y > 0) { chunks[x][y][z].adjacent_chunks[1] = &chunks[x][y - 1][z]; }
+				if(y + 1 < WORD_HEIGHT) chunks[x][y][z].adjacent_chunks[0] = &chunks[x][y + 1][z];
 
-				if(x < CHUNK_SIZE - 1) chunks[x][y][z].adjacent_chunks[3] = &chunks[x + 1][y][z];
-				if(y < CHUNK_SIZE - 1) chunks[x][y][z].adjacent_chunks[0] = &chunks[x][y + 1][z];
-				*/
+				if(z > 0) { chunks[x][y][z].adjacent_chunks[4] = &chunks[x][y][z + 1]; }
+				if(z + 1 < LOAD_DISTANCE) chunks[x][y][z].adjacent_chunks[5] = &chunks[x][y][z - 1];
 				
 				chunks[x][y][z].updateMesh(&physicsCommon, world);
+
+				tris += chunks[x][y][z].indices.size() / 3;
 			}
 		}
 	}
@@ -149,7 +155,14 @@ bool init_resources() {
 	const char* uniform_name;
 	uniform_name = "mvp";
 	uniform_mvp = glGetUniformLocation(program, uniform_name);
-	if (uniform_fade == -1) {
+	if (uniform_mvp == -1) {
+		cerr << "Could not bind uniform " << uniform_name << endl;
+		return false;
+	}
+
+	uniform_name = "time";
+	uniform_time = glGetUniformLocation(program, uniform_name);
+	if (uniform_time == -1) {
 		cerr << "Could not bind uniform " << uniform_name << endl;
 		return false;
 	}
@@ -165,7 +178,7 @@ void setup() {
 	entities.push_back({
 		type: EntityType::Player,
 		name: (char*)"Player",
-		position: glm::vec3(0.0f, 16.0f*WORD_HEIGHT, 0.0f),
+		position: glm::vec3(10.0f, 16.0f*WORD_HEIGHT, 10.0f),
 	});
 }
 
@@ -175,44 +188,90 @@ glm::vec2 look_dir;
 
 glm::mat4 camera_transform = glm::mat4(1.0f);
 
+bool firstDelta = true;
 float last_time = 0;
 float dt = 0;
 bool m_left, m_right, m_up, m_down, m_shift, m_space = false;
 
 glm::quat orientation = glm::quat(glm::vec3(0.0f, 0.0f, 0.0f));
 
-void player_logic(Entity* player) {
-	player->velocity = glm::vec3(0.0f);
-	if(m_up) player->velocity.z = MOVE_SPEED;
-	if(m_down) player->velocity.z = -MOVE_SPEED;
-	if(m_left) player->velocity.x = MOVE_SPEED;
-	if(m_right) player->velocity.x = -MOVE_SPEED;
-	if(m_space) player->velocity.y = -MOVE_SPEED;
-	if(m_shift) player->velocity.y = MOVE_SPEED;
-	ui.vel = player->velocity;
+void player_logic(Entity* player, float dt) {
+	player->velocity;
 
-	player->position -= glm::rotate(glm::inverse(orientation), V3FORWARD) * player->velocity.z * dt;
-	player->position -= V3UP * player->velocity.y * dt;
-	player->position -= glm::rotate(glm::inverse(orientation), V3RIGHT) * player->velocity.x * dt;
+	glm::vec2 move = glm::vec2(0.0f);
+
+	if(m_up) move.y = -1;
+	if(m_down) move.y = 1;
+	if(m_left) move.x = -1;
+	if(m_right) move.x = 1;
+
+	float y_angle = player->look_dir.x;
+	player->velocity.x = (cos(y_angle) * move.x - sin(y_angle) * move.y) * WALK_SPEED;
+	player->velocity.z = (sin(y_angle) * move.x + cos(y_angle) * move.y) * WALK_SPEED;
+
+
+	bool grounded = raycast(&chunks, &player->position, glm::quat(glm::vec3(-M_PIf, 0.0f, 0.0f)), &ui.hit_pos, .01f, .001f);
+
+	player->velocity.y = max(player->velocity.y - (GRAVITY*dt), -GRAVITY);
+	if(m_space && grounded) player->velocity.y += 5.0f;
+	//if(m_shift) player->velocity.y = -MOVE_SPEED;
+
+	if(grounded) player->velocity.y = max(player->velocity.y, 0.0f);
+
+	glm::vec3 check_pos = player->position;
+	check_pos.y += 0.1f;
+
+
+
+	bool hit_pos_z = raycast(&chunks, &check_pos, glm::quat(glm::vec3(0.0f, 0.0f, 0.0f)), nullptr, .5f, .001f);
+	bool hit_pos_x = raycast(&chunks, &check_pos, glm::quat(glm::vec3(0.0f, M_PIf/2.0f, 0.0f)), nullptr, .5f, .001f);
+	bool hit_neg_z = raycast(&chunks, &check_pos, glm::quat(glm::vec3(0.0f, M_PIf, 0.0f)), nullptr, .5f, .001f);
+	bool hit_neg_x = raycast(&chunks, &check_pos, glm::quat(glm::vec3(0.0f, -M_PIf/2.0f, 0.0f)), nullptr, .5f, .001f);
+
+	//printf("+x %i +z %i -x %i -z %i\n", hit_pos_x, hit_pos_z, hit_neg_x, hit_neg_z);
+
+	if(hit_pos_x) player->velocity.x = min(player->velocity.x, 0.0f);
+	if(hit_pos_z) player->velocity.z = max(player->velocity.z, 0.0f);
+	if(hit_neg_x) player->velocity.x = max(player->velocity.x, 0.0f);
+	if(hit_neg_z) player->velocity.z = min(player->velocity.z, 0.0f);
+
+	/* 
+		Rotate velocity
+		glm::rotate(glm::inverse(orientation), V3FORWARD)
+		glm::rotate(glm::inverse(orientation), V3RIGHT)
+	*/
+
+	player->position += V3FORWARD * player->velocity.z * dt;
+	player->position += V3UP * player->velocity.y * dt;
+	player->position += V3RIGHT * player->velocity.x * dt;
 	ui.pos = player->position;
+	ui.vel = player->velocity;
 
 	player->orientation = orientation;
 	offset = -player->position;
 }
 
-void logic() {
-	dt = SDL_GetTicks() - last_time;
-	world->update(dt / 1000.0f);
-	last_time = SDL_GetTicks();
+float gt = 0;
 
-	ui.fps += 1.0f/(dt/1000.0f);
+void logic() {
+	if(!firstDelta) {
+		dt = (SDL_GetTicks64() - last_time) / 1000.0f;
+	} else firstDelta = false;
+
+	world->update(dt);
+	last_time = SDL_GetTicks64();
+
+	gt = SDL_GetTicks() / 1000.0f / DAY_NIGHT_TIME / 60.0f + .5f;
+
+	ui.fps += 1.0f/dt;
 	ui.fps /= 2.0f;
 
 	for(Entity& entity : entities) {
 		if(!entity.is_owned) continue;
 		switch (entity.type) {
 			case EntityType::Player:
-				player_logic(&entity);
+				entity.look_dir = look_dir;
+				player_logic(&entity, dt);
 				break;
 		}
 	}
@@ -240,13 +299,13 @@ void logic() {
 	view *= rotate;
 	view = glm::translate(view, offset);
 
-	glm::mat4 projection = glm::perspective(45.0f, 1.0f*prefs.width/prefs.height, 0.1f, 300.0f);
+	glm::mat4 projection = glm::perspective(45.0f, 1.0f*prefs.width/prefs.height, 0.1f, 10000.0f);
 
 	glm::mat4 mvp = projection * view * model;
 
 	glUseProgram(program);
 	glUniformMatrix4fv(uniform_mvp, 1, GL_FALSE, glm::value_ptr(mvp));
-
+	glUniform1f(uniform_time, gt);
 }
 
 void render(SDL_Renderer* renderer, SDL_Window* window) {

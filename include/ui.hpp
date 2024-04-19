@@ -5,6 +5,7 @@
 #include "imgui.h"
 #include "helper.hpp"
 #include "preferences.hpp"
+#include "config.hpp"
 
 struct UIData {
     bool f3;
@@ -14,8 +15,11 @@ struct UIData {
     glm::vec3 pos;
     glm::vec3 vel;
     glm::vec2 look_dir;
+
+    glm::vec3 hit_pos;
     
     float fps = 60.0f;
+    float time = 0.0f;
 };
 
 const char* CenterText(const char* text) {
@@ -46,10 +50,12 @@ bool render_ui(UIData* ui, Preferences *prefs) {
             ImGuiWindowFlags_NoInputs);
         ImGui::SetWindowFontScale(1.5f);
         ImGui::Text("Position\nX %f\nY %f\nZ %f", V3FMT(ui->pos));
+        ImGui::Text("Hit Pos\nX %f\nY %f\nZ %f", V3FMT(ui->hit_pos));
         ImGui::Text("Velocity X %f Y %f Z %f", V3FMT(ui->vel));
         ImGui::Text("Look dir X %f Y %f", V2FMT(ui->look_dir));
         ImGui::Text("Window size %i %i", prefs->width, prefs->height);
         ImGui::Text("FPS %f", ui->fps);
+        ImGui::Text("Time %f", ui->time);
         ImGui::End();
     }
 
