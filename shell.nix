@@ -22,7 +22,6 @@
       glslang
       zip
       gdb
-      mangohud
       harfbuzz
       libwebp
       glib
