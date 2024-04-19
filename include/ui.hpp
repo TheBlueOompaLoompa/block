@@ -18,7 +18,7 @@ struct UIData {
 
     glm::vec3 hit_pos;
     
-    float fps = 60.0f;
+    double fps = 60.0;
     float time = 0.0f;
 };
 
@@ -67,22 +67,32 @@ bool render_ui(UIData* ui, Preferences *prefs) {
         ImGui::SetWindowPos(ImVec2 { 0.0, 0.0 });
         ImGui::SetWindowSize(ImVec2 { (float)prefs->width, (float)prefs->height });
 
-        if(ImGui::Button(CenterText("Back to Game"))) {
+        if(ImGui::Button("Back to Game")) {
             ui->esc = false;
         }
 
-        if(ImGui::Button(CenterText("Toggle Fullscreen"))) {
+        if(ImGui::Button("Toggle Fullscreen")) {
             prefs->fullscreen = !prefs->fullscreen;
             changed = true;
         }
 
-        if(ImGui::Button(CenterText("Quit"))) {
+        ImGui::SliderFloat("Field of View", &prefs->graphics.fov, 20.0f, 120.0f);
+
+        if(ImGui::Button("Quit")) {
             ui->quit = true;
         }
 
         ImGui::End();
     }
 
+    ImGui::Begin("How to Play", NULL,
+    ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize |
+            ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoFocusOnAppearing|
+            ImGuiWindowFlags_NoInputs);
+    ImGui::SetWindowFontScale(2.0f);
+    ImGui::Text("Use W A S D to move");
+    ImGui::Text("Use mouse to look");
+    ImGui::End();
 
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());

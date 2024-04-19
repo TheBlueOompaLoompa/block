@@ -34,7 +34,20 @@ struct Chunk {
 
     }
 
-    void updateMesh(rp3d::PhysicsCommon* physicsCommon, rp3d::PhysicsWorld* world) {
+    void update_area(V3VECARRAY(Chunk)& chunks) {
+        update_mesh();
+        if(x > 0) chunks[x - 1][y][z].update_mesh();
+        if(y > 0) chunks[x][y - 1][z].update_mesh();
+        if(z > 0) chunks[x][y][z - 1].update_mesh();
+        if(x < LOAD_DISTANCE - 1) chunks[x + 1][y][z].update_mesh();
+        if(y < WORD_HEIGHT - 1) chunks[x][y + 1][z].update_mesh();
+        if(z < LOAD_DISTANCE - 1) chunks[x][y][z + 1].update_mesh();
+    }
+
+    void update_mesh() {
+        vertices.clear();
+        normals.clear();
+        indices.clear();
         for(int my = 0; my < CHUNK_SIZE; my++) {
             for(int mz = 0; mz < CHUNK_SIZE; mz++) {
                 for(int mx = 0; mx < CHUNK_SIZE; mx++) {

@@ -14,12 +14,32 @@ struct InputPreferences {
     SDL_Scancode crouch = SDL_SCANCODE_LSHIFT;
 };
 
+struct GraphicsPreferences {
+    float fov = 90.0f;
+};
+
+#define PREFS_FILE "prefs.bin"
 struct Preferences {
     // UI
     bool fullscreen = false;
     int width = 1280;
     int height = 720;
 
-    // Input
     InputPreferences input;
+    GraphicsPreferences graphics;
+
+    static void save(Preferences *self) {
+        auto file = fopen(PREFS_FILE, "w");
+
+        fwrite(self, sizeof(Preferences), 1, file);
+        fclose(file);
+    }
+
+    static void load(Preferences *self) {
+        if(!std::filesystem::exists(PREFS_FILE)) return;
+        auto file = fopen(PREFS_FILE, "r");
+
+        fread(self, sizeof(Preferences), 1, file);
+        fclose(file);
+    }
 };

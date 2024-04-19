@@ -1,3 +1,9 @@
+/*
+USE W A S D to move
+LOOK with your mouse
+*/
+
+
 // Std
 #include <cstdlib>
 #include <iostream>
@@ -26,7 +32,7 @@
 #include "helper.hpp"
 #include "ui.hpp"
 #include "entity.hpp"
-#include "worldgen.hpp"
+//#include "worldgen.hpp"
 #include "preferences.hpp"
 #include "physics.hpp"
 
@@ -70,8 +76,8 @@ bool init_resources() {
 	// WORLD GEN
 
 	height_program = create_program("res/shaders/compute/compute.v.glsl", "res/shaders/compute/height.glsl");
-	GLuint height_map = gen_height_map(&height_program, CHUNK_SIZE, 0, 0, LOAD_DISTANCE, LOAD_DISTANCE);
-	printf("Height map texture id %i\n",height_map);
+	//GLuint height_map = gen_height_map(height_program, CHUNK_SIZE, 0, 0, LOAD_DISTANCE, LOAD_DISTANCE);
+	//printf("Height map texture id %i\n",height_map);
 
 	chunks = vector<vector<vector<Chunk>>>(LOAD_DISTANCE);
 	for(int x = 0; x < LOAD_DISTANCE; x++) {
@@ -101,8 +107,6 @@ bool init_resources() {
 		}
 	}
 
-	int tris = 0;
-
 	for(int x = 0; x < LOAD_DISTANCE; x++) {
 		for(int y = 0; y < WORD_HEIGHT; y++) {
 			for(int z = 0; z < LOAD_DISTANCE; z++) {
@@ -115,9 +119,7 @@ bool init_resources() {
 				if(z > 0) { chunks[x][y][z].adjacent_chunks[4] = &chunks[x][y][z + 1]; }
 				if(z + 1 < LOAD_DISTANCE) chunks[x][y][z].adjacent_chunks[5] = &chunks[x][y][z - 1];
 				
-				chunks[x][y][z].updateMesh(&physicsCommon, world);
-
-				tris += chunks[x][y][z].indices.size() / 3;
+				chunks[x][y][z].update_mesh();
 			}
 		}
 	}
@@ -189,11 +191,13 @@ glm::vec2 look_dir;
 glm::mat4 camera_transform = glm::mat4(1.0f);
 
 bool firstDelta = true;
-float last_time = 0;
-float dt = 0;
-bool m_left, m_right, m_up, m_down, m_shift, m_space = false;
+double last_time = 0;
+double dt = 0;
+bool m_left, m_right, m_up, m_down, m_shift, m_space, m_click = false;
 
 glm::quat orientation = glm::quat(glm::vec3(0.0f, 0.0f, 0.0f));
+
+#define CLAMP_CHUNK(x, max) min(max(0.0f, x), max)
 
 void player_logic(Entity* player, float dt) {
 	player->velocity;
@@ -209,14 +213,15 @@ void player_logic(Entity* player, float dt) {
 	player->velocity.x = (cos(y_angle) * move.x - sin(y_angle) * move.y) * WALK_SPEED;
 	player->velocity.z = (sin(y_angle) * move.x + cos(y_angle) * move.y) * WALK_SPEED;
 
-
-	bool grounded = raycast(&chunks, &player->position, glm::quat(glm::vec3(-M_PIf, 0.0f, 0.0f)), &ui.hit_pos, .01f, .001f);
+	bool grounded = raycast(&chunks, &player->position, glm::quat(glm::vec3(-M_PIf, 0.0f, 0.0f)), nullptr, .01f, .001f);
 
 	player->velocity.y = max(player->velocity.y - (GRAVITY*dt), -GRAVITY);
-	if(m_space && grounded) player->velocity.y += 5.0f;
+	if(m_space && grounded) {
+		player->velocity.y = 5.0f;
+	}
 	//if(m_shift) player->velocity.y = -MOVE_SPEED;
 
-	if(grounded) player->velocity.y = max(player->velocity.y, 0.0f);
+	if(grounded) { player->velocity.y = max(player->velocity.y, 0.0f); }
 
 	glm::vec3 check_pos = player->position;
 	check_pos.y += 0.1f;
@@ -249,13 +254,31 @@ void player_logic(Entity* player, float dt) {
 
 	player->orientation = orientation;
 	offset = -player->position;
+
+	check_pos.y += PLAYER_HEIGHT - .6f;
+
+	//raycast(&chunks, &check_pos, orientation, &ui.hit_pos);
+
+	if(m_click) {
+		glm::vec3 hit_pos;
+
+		if(raycast(&chunks, &check_pos, orientation, &hit_pos)) {
+			chunks[floor(hit_pos.x/CHUNK_SIZE)][floor(hit_pos.y/CHUNK_SIZE)][floor(hit_pos.z/CHUNK_SIZE)]
+				.blocks[(int)floor(hit_pos.x)%16][(int)floor(hit_pos.y)%16][(int)floor(hit_pos.z)%16].type = BlockType::AIR;
+			
+			chunks[floor(hit_pos.x/CHUNK_SIZE)][floor(hit_pos.y/CHUNK_SIZE)][floor(hit_pos.z/CHUNK_SIZE)].update_area(chunks);
+		}
+		ui.hit_pos = hit_pos;
+
+		m_click = false;
+	}
 }
 
 float gt = 0;
 
 void logic() {
 	if(!firstDelta) {
-		dt = (SDL_GetTicks64() - last_time) / 1000.0f;
+		dt = ((double)SDL_GetTicks64() - last_time) / 1000.0;
 	} else firstDelta = false;
 
 	world->update(dt);
@@ -263,8 +286,8 @@ void logic() {
 
 	gt = SDL_GetTicks() / 1000.0f / DAY_NIGHT_TIME / 60.0f + .5f;
 
-	ui.fps += 1.0f/dt;
-	ui.fps /= 2.0f;
+	ui.fps = dt * 1000.0;
+	//ui.fps /= 2.0f;
 
 	for(Entity& entity : entities) {
 		if(!entity.is_owned) continue;
@@ -286,7 +309,7 @@ void logic() {
 	glm::vec3 axis_y(0, 1, 0);
 	//glm::mat4 anim = glm::rotate(glm::mat4(1.0f), glm::radians(angle), axis_y);
 	
-	glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(0, -2, 0));
+	glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(0, -PLAYER_HEIGHT + .5f, 0));
 	glm::mat4 view = glm::translate(glm::mat4(1.0), glm::vec3(0.0));
 
 	glm::quat pitch = glm::angleAxis(look_dir.y, V3RIGHT);
@@ -299,7 +322,7 @@ void logic() {
 	view *= rotate;
 	view = glm::translate(view, offset);
 
-	glm::mat4 projection = glm::perspective(45.0f, 1.0f*prefs.width/prefs.height, 0.1f, 10000.0f);
+	glm::mat4 projection = glm::perspective(prefs.graphics.fov * M_PIf / 180.0f, 1.0f*prefs.width/prefs.height, 0.1f, 10000.0f);
 
 	glm::mat4 mvp = projection * view * model;
 
@@ -451,6 +474,7 @@ void mainLoop(SDL_Renderer* renderer, SDL_Window* window, ImGuiIO& io) {
 					SDL_SetWindowMouseGrab(window, SDL_TRUE);
 					SDL_SetRelativeMouseMode(SDL_TRUE);
 					SDL_SetCursor(NULL);
+					m_click = true;
 					break;
 				case SDL_MOUSEMOTION:
 					if(io.WantCaptureMouse) break;
@@ -470,6 +494,8 @@ void mainLoop(SDL_Renderer* renderer, SDL_Window* window, ImGuiIO& io) {
 
 int main(int argc, char* argv[]) {
 	printf("Start Block\n");
+
+	Preferences::load(&prefs);
 
 	/* SDL-related initialising functions */
 	SDL_Init(SDL_INIT_VIDEO);
@@ -543,9 +569,13 @@ int main(int argc, char* argv[]) {
 	if (!init_resources())
 		return EXIT_FAILURE;
 
+	apply_prefs(window);
+
 	/* We can display something if everything goes OK */
 	setup();
 	mainLoop(renderer, window, io);
+
+	Preferences::save(&prefs);
 
 	/* If the program exits in the usual way,
 	   free resources and exit with a success */

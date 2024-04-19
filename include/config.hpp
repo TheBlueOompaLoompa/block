@@ -11,6 +11,7 @@
 #define LOOK_SPEED .01f
 #define PHYS_SPEED 200.0f
 #define GRAVITY 8.0f
+#define PLAYER_HEIGHT 2.0f
 
 // In minutes
 #define DAY_NIGHT_TIME 20.0f
