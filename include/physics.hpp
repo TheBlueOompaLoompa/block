@@ -27,7 +27,7 @@ bool safe_air_check(V3VECARRAY(Chunk)* chunks_ref, glm::vec3 ray_pos) {
 }
 
 // Returns true when hit
-bool raycast(V3VECARRAY(Chunk)* chunks_ref, glm::vec3* start_pos, glm::quat rot, glm::vec3* hit_pos, float max_dist = 6.0f, float step = .05) {
+bool raycast(V3VECARRAY(Chunk)* chunks_ref, glm::vec3* start_pos, glm::quat rot, glm::vec3* hit_pos = nullptr, /*glm::vec3* hit_block = nullptr,*/ float max_dist = 6.0f, float step = .05) {
     glm::vec3 ray_pos = (*start_pos);
     
     while(
