@@ -24,6 +24,7 @@ LOOK with your mouse
 #include "imgui.h"
 #include "backends/imgui_impl_sdl2.h"
 #include "backends/imgui_impl_opengl3.h"
+#include "FastNoiseLite.h"
 
 // Engine
 #include "config.hpp"
@@ -79,6 +80,11 @@ bool init_resources() {
 	//GLuint height_map = gen_height_map(height_program, CHUNK_SIZE, 0, 0, LOAD_DISTANCE, LOAD_DISTANCE);
 	//printf("Height map texture id %i\n",height_map);
 
+	FastNoiseLite noise(0);
+	noise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
+
+	#define NOISE_SCALE 2.0f
+
 	chunks = vector<vector<vector<Chunk>>>(LOAD_DISTANCE);
 	for(int x = 0; x < LOAD_DISTANCE; x++) {
 		chunks[x] = vector<vector<Chunk>>(WORD_HEIGHT);
@@ -94,12 +100,11 @@ bool init_resources() {
 				for(int by = 0; by < CHUNK_SIZE; by++) {
 					for(int bz = 0; bz < CHUNK_SIZE; bz++) {
 						for(int bx = 0; bx < CHUNK_SIZE; bx++) {
-							if(y < WORD_HEIGHT*.9f) {
+							if((noise.GetNoise((float)(x * CHUNK_SIZE + bx), (float)(z * CHUNK_SIZE + bz)) + 1.0f) / 2.0f > (float)(y * CHUNK_SIZE + by) / WORD_HEIGHT / CHUNK_SIZE) {
 								chunks[x][y][z].blocks[bx][by][bz].type = BlockType::DIRT;	
-							}else if(height_function >= by) {
-								chunks[x][y][z].blocks[bx][by][bz].type = BlockType::DIRT;
-								if(height_function == by) chunks[x][y][z].blocks[bx][by][bz].type = BlockType::GRASS;
-							}else chunks[x][y][z].blocks[bx][by][bz].type = BlockType::AIR;
+							} else if((noise.GetNoise((float)(x * CHUNK_SIZE + bx), (float)(z * CHUNK_SIZE + bz)) + 1.0f) / 2.0f > (float)(y * CHUNK_SIZE + by - 1.0f) / WORD_HEIGHT / CHUNK_SIZE) {
+								chunks[x][y][z].blocks[bx][by][bz].type = BlockType::GRASS;	
+							} else chunks[x][y][z].blocks[bx][by][bz].type = BlockType::AIR;
 						}
 					}
 				}
@@ -193,7 +198,7 @@ glm::mat4 camera_transform = glm::mat4(1.0f);
 bool firstDelta = true;
 double last_time = 0;
 double dt = 0;
-bool m_left, m_right, m_up, m_down, m_shift, m_space, m_click = false;
+bool m_left, m_right, m_up, m_down, m_shift, m_space, m_click, m_click_lr = false;
 
 glm::quat orientation = glm::quat(glm::vec3(0.0f, 0.0f, 0.0f));
 
@@ -209,6 +214,9 @@ void player_logic(Entity* player, float dt) {
 	if(m_left) move.x = -1;
 	if(m_right) move.x = 1;
 
+	// Normalize angular movement
+	move /= abs(move.x) + abs(move.y) > 1 ? sqrt(2) : 1;
+
 	float y_angle = player->look_dir.x;
 	player->velocity.x = (cos(y_angle) * move.x - sin(y_angle) * move.y) * WALK_SPEED;
 	player->velocity.z = (sin(y_angle) * move.x + cos(y_angle) * move.y) * WALK_SPEED;
@@ -217,7 +225,7 @@ void player_logic(Entity* player, float dt) {
 
 	player->velocity.y = max(player->velocity.y - (GRAVITY*dt), -GRAVITY);
 	if(m_space && grounded) {
-		player->velocity.y = 5.0f;
+		player->velocity.y = JUMP_FORCE;
 	}
 	//if(m_shift) player->velocity.y = -MOVE_SPEED;
 
@@ -264,7 +272,7 @@ void player_logic(Entity* player, float dt) {
 
 		if(raycast(&chunks, &check_pos, orientation, &hit_pos)) {
 			chunks[floor(hit_pos.x/CHUNK_SIZE)][floor(hit_pos.y/CHUNK_SIZE)][floor(hit_pos.z/CHUNK_SIZE)]
-				.blocks[(int)floor(hit_pos.x)%16][(int)floor(hit_pos.y)%16][(int)floor(hit_pos.z)%16].type = BlockType::AIR;
+				.blocks[(int)floor(hit_pos.x)%16][(int)floor(hit_pos.y)%16][(int)floor(hit_pos.z)%16].type = m_click_lr ? BlockType::AIR : BlockType::DIRT;
 			
 			chunks[floor(hit_pos.x/CHUNK_SIZE)][floor(hit_pos.y/CHUNK_SIZE)][floor(hit_pos.z/CHUNK_SIZE)].update_area(chunks);
 		}
@@ -475,6 +483,8 @@ void mainLoop(SDL_Renderer* renderer, SDL_Window* window, ImGuiIO& io) {
 					SDL_SetRelativeMouseMode(SDL_TRUE);
 					SDL_SetCursor(NULL);
 					m_click = true;
+					m_click_lr = ev.button.button == SDL_BUTTON_LEFT;
+
 					break;
 				case SDL_MOUSEMOTION:
 					if(io.WantCaptureMouse) break;
