@@ -75,11 +75,6 @@ bool init_resources() {
 
 
 	// WORLD GEN
-
-	height_program = create_program("res/shaders/compute/compute.v.glsl", "res/shaders/compute/height.glsl");
-	//GLuint height_map = gen_height_map(height_program, CHUNK_SIZE, 0, 0, LOAD_DISTANCE, LOAD_DISTANCE);
-	//printf("Height map texture id %i\n",height_map);
-
 	FastNoiseLite noise(0);
 	noise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
 
@@ -95,14 +90,17 @@ bool init_resources() {
 				chunks[x][y][z].y = y;
 				chunks[x][y][z].z = z;
 
-				#define height_function floorf(((float)rand()/(float)RAND_MAX - .5f) * 2.0f)
+				#define height_function(topper) \
+					(noise.GetNoise((float)(x * CHUNK_SIZE + bx), (float)(z * CHUNK_SIZE + bz)) + 1.0f) / 2.0f / 2.0f \
+					/ (noise.GetNoise((float)(x * 4.0f + bx), (float)(z  * 4.0f + bz)) + 1.0f) / 2.0f / 2.0f /2.0f \ 
+					> (float)(y * CHUNK_SIZE + by topper) / WORD_HEIGHT / CHUNK_SIZE
 
 				for(int by = 0; by < CHUNK_SIZE; by++) {
 					for(int bz = 0; bz < CHUNK_SIZE; bz++) {
 						for(int bx = 0; bx < CHUNK_SIZE; bx++) {
-							if((noise.GetNoise((float)(x * CHUNK_SIZE + bx), (float)(z * CHUNK_SIZE + bz)) + 1.0f) / 2.0f > (float)(y * CHUNK_SIZE + by) / WORD_HEIGHT / CHUNK_SIZE) {
+							if(height_function()) {
 								chunks[x][y][z].blocks[bx][by][bz].type = BlockType::DIRT;	
-							} else if((noise.GetNoise((float)(x * CHUNK_SIZE + bx), (float)(z * CHUNK_SIZE + bz)) + 1.0f) / 2.0f > (float)(y * CHUNK_SIZE + by - 1.0f) / WORD_HEIGHT / CHUNK_SIZE) {
+							} else if(height_function(- 1.0f)) {
 								chunks[x][y][z].blocks[bx][by][bz].type = BlockType::GRASS;	
 							} else chunks[x][y][z].blocks[bx][by][bz].type = BlockType::AIR;
 						}
@@ -187,6 +185,12 @@ void setup() {
 		name: (char*)"Player",
 		position: glm::vec3(10.0f, 16.0f*WORD_HEIGHT, 10.0f),
 	});
+
+	glm::vec3 hit_pos;
+
+	if(raycast(&chunks, &entities[entities.size() - 1].position, glm::quat(glm::vec3(-M_PIf, 0.0, 0.0)), &hit_pos, 16.0f*WORD_HEIGHT + 20.0f, 0.1f)) {
+		entities[entities.size() - 1].position = hit_pos;
+	}
 }
 
 glm::vec3 offset = glm::vec3(0.0f);
@@ -221,7 +225,15 @@ void player_logic(Entity* player, float dt) {
 	player->velocity.x = (cos(y_angle) * move.x - sin(y_angle) * move.y) * WALK_SPEED;
 	player->velocity.z = (sin(y_angle) * move.x + cos(y_angle) * move.y) * WALK_SPEED;
 
-	bool grounded = raycast(&chunks, &player->position, glm::quat(glm::vec3(-M_PIf, 0.0f, 0.0f)), nullptr, .01f, .001f);
+	bool grounded = false;
+	for(int x = 0; x < 2; x++) {
+		for(int y = 0; y < 2; y++) {
+			glm::vec3 ray_start = player->position + glm::vec3((float)x*.90f - 0.45f, 0.0f, (float)y*.90f - 0.45f);
+			if(raycast(&chunks, &ray_start, glm::quat(glm::vec3(-M_PIf, 0.0f, 0.0f)), nullptr, .01f, .001f)) {
+				grounded = true;
+			}
+		}		
+	}
 
 	player->velocity.y = max(player->velocity.y - (GRAVITY*dt), -GRAVITY);
 	if(m_space && grounded) {
@@ -270,7 +282,7 @@ void player_logic(Entity* player, float dt) {
 	if(m_click) {
 		glm::vec3 hit_pos;
 
-		if(raycast(&chunks, &check_pos, orientation, &hit_pos)) {
+		if(raycast(&chunks, &check_pos, orientation, &hit_pos, 5.0f)) {
 			chunks[floor(hit_pos.x/CHUNK_SIZE)][floor(hit_pos.y/CHUNK_SIZE)][floor(hit_pos.z/CHUNK_SIZE)]
 				.blocks[(int)floor(hit_pos.x)%16][(int)floor(hit_pos.y)%16][(int)floor(hit_pos.z)%16].type = m_click_lr ? BlockType::AIR : BlockType::DIRT;
 			
