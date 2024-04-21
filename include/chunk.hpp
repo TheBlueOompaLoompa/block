@@ -148,19 +148,19 @@ struct Chunk {
 
         vertices.push_back({
             pos: glm::vec3((float)sx, (float)sy, (float)sz),
-            uv: glm::vec2((flip_y ? 1.0f : 0.0f) / ATLAS_ROWS + (ATLAS_ROWS - 1.0) / ATLAS_ROWS, ((flip_x ? 1.0f : 0.0f) + atlas_offset) / ATLAS_TEX_COUNT)
+            uv: glm::vec2((flip_y ? 1.0f : 0.0f) / ATLAS_ROWS + (ATLAS_ROWS - 1.0) / ATLAS_ROWS, ((flip_x ? 1.0f : 0.0f) + atlas_offset) / ATLAS_COLS)
         });
         vertices.push_back({
             pos: glm::vec3((float)(sx + right.x), (float)(sy + right.y), (float)(sz + right.z)),
-            uv: glm::vec2((flip_y ? 0.0f : 1.0f) / ATLAS_ROWS + (ATLAS_ROWS - 1.0) / ATLAS_ROWS, ((flip_x ? 1.0f : 0.0f) + atlas_offset) / ATLAS_TEX_COUNT)
+            uv: glm::vec2((flip_y ? 0.0f : 1.0f) / ATLAS_ROWS + (ATLAS_ROWS - 1.0) / ATLAS_ROWS, ((flip_x ? 1.0f : 0.0f) + atlas_offset) / ATLAS_COLS)
         });
         vertices.push_back({
             pos: glm::vec3((float)(sx + right.x + up.x), (float)(sy + right.y + up.y), (float)(sz + right.z + up.z)),
-            uv: glm::vec2((flip_y ? 0.0f : 1.0f) / ATLAS_ROWS + (ATLAS_ROWS - 1.0) / ATLAS_ROWS, ((flip_x ? 0.0f : 1.0f) + atlas_offset) / ATLAS_TEX_COUNT)
+            uv: glm::vec2((flip_y ? 0.0f : 1.0f) / ATLAS_ROWS + (ATLAS_ROWS - 1.0) / ATLAS_ROWS, ((flip_x ? 0.0f : 1.0f) + atlas_offset) / ATLAS_COLS)
         });
         vertices.push_back({
             pos: glm::vec3((float)(sx + up.x), (float)(sy + up.y), (float)(sz + up.z)),
-            uv: glm::vec2((flip_y ? 1.0f : 0.0f) / ATLAS_ROWS + (ATLAS_ROWS - 1.0) / ATLAS_ROWS, ((flip_x ? 0.0f : 1.0f) + atlas_offset) / ATLAS_TEX_COUNT)
+            uv: glm::vec2((flip_y ? 1.0f : 0.0f) / ATLAS_ROWS + (ATLAS_ROWS - 1.0) / ATLAS_ROWS, ((flip_x ? 0.0f : 1.0f) + atlas_offset) / ATLAS_COLS)
         });
 
         if(flip) {
