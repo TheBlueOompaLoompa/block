@@ -7,6 +7,10 @@
 #include "preferences.hpp"
 #include "config.hpp"
 
+struct UIResources {
+    GLuint* atlas;
+};
+
 struct UIData {
     bool f3;
     bool esc;
@@ -20,6 +24,7 @@ struct UIData {
     
     double fps = 60.0;
     float time = 0.0f;
+    UIResources res;
 };
 
 const char* CenterText(const char* text) {
@@ -85,13 +90,22 @@ bool render_ui(UIData* ui, Preferences *prefs) {
         ImGui::End();
     }
 
-    ImGui::Begin("How to Play", NULL,
-    ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize |
+    ImGui::Begin("HUD", NULL,
+    ImGuiWindowFlags_NoDecoration |
             ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoFocusOnAppearing|
             ImGuiWindowFlags_NoInputs);
+    ImGui::SetWindowPos(ImVec2 { 0.0, 0.0 });
+    ImGui::SetWindowSize(ImVec2 { (float)prefs->width, (float)prefs->height });
+
     ImGui::SetWindowFontScale(2.0f);
-    ImGui::Text("Use W A S D to move");
-    ImGui::Text("Use mouse to look");
+
+    // Instructions
+    ImGui::Text("Use W A S D to move and SPACE to jump");
+    ImGui::Text("Use mouse to look, left click to break, and right click to place.");
+
+    ImGui::SetCursorPos(ImVec2(ImGui::GetWindowWidth()/2 - 8, ImGui::GetWindowHeight()/2 - 8));
+    ImGui::Image((void*)*ui->res.atlas, ImVec2(16.0, 16.0), ImVec2(0.0, .5f), ImVec2(1/ATLAS_TEX_COUNT, 1.0));
+
     ImGui::End();
 
     ImGui::Render();

@@ -24,7 +24,6 @@ LOOK with your mouse
 #include "imgui.h"
 #include "backends/imgui_impl_sdl2.h"
 #include "backends/imgui_impl_opengl3.h"
-#include "FastNoiseLite.h"
 
 // Engine
 #include "config.hpp"
@@ -33,14 +32,14 @@ LOOK with your mouse
 #include "helper.hpp"
 #include "ui.hpp"
 #include "entity.hpp"
-//#include "worldgen.hpp"
+#include "worldgen.hpp"
 #include "preferences.hpp"
 #include "physics.hpp"
 
 using namespace std;
 
 GLuint program;
-GLuint texture_id, program_id;
+GLuint texture_atlas_id, program_id;
 GLint uniform_mytexture;
 GLuint attribute_coord3d, attribute_texcoord, attribute_normal;
 GLint uniform_mvp;
@@ -56,11 +55,9 @@ UIData ui;
 
 TTF_Font* Sans;
 
-GLuint height_program = 0;
-
 Preferences prefs;
 
-bool init_resources() {
+bool init_resources(SDL_Renderer* renderer) {
 	if (TTF_Init() < 0) {
 			fprintf(stderr, "Couldn't initialize TTF: %s\n",SDL_GetError());
 			return false;
@@ -73,36 +70,25 @@ bool init_resources() {
 		return false;
 	}
 
-
-	// WORLD GEN
-	FastNoiseLite noise(0);
-	noise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
-
-	#define NOISE_SCALE 2.0f
-
 	chunks = vector<vector<vector<Chunk>>>(LOAD_DISTANCE);
-	for(int x = 0; x < LOAD_DISTANCE; x++) {
-		chunks[x] = vector<vector<Chunk>>(WORD_HEIGHT);
-		for(int y = 0; y < WORD_HEIGHT; y++) {
-			chunks[x][y] = vector<Chunk>(LOAD_DISTANCE);
-			for(int z = 0; z < LOAD_DISTANCE; z++) {
-				chunks[x][y][z].x = x;
-				chunks[x][y][z].y = y;
-				chunks[x][y][z].z = z;
+	for(int cx = 0; cx < LOAD_DISTANCE; cx++) {
+		chunks[cx] = vector<vector<Chunk>>(WORD_HEIGHT);
+		for(int cy = 0; cy < WORD_HEIGHT; cy++) {
+			chunks[cx][cy] = vector<Chunk>(LOAD_DISTANCE);
+			for(int cz = 0; cz < LOAD_DISTANCE; cz++) {
+				chunks[cx][cy][cz].x = cx;
+				chunks[cx][cy][cz].y = cy;
+				chunks[cx][cy][cz].z = cz;
 
-				#define height_function(topper) \
-					(noise.GetNoise((float)(x * CHUNK_SIZE + bx), (float)(z * CHUNK_SIZE + bz)) + 1.0f) / 2.0f / 2.0f \
-					/ (noise.GetNoise((float)(x * 4.0f + bx), (float)(z  * 4.0f + bz)) + 1.0f) / 2.0f / 2.0f /2.0f \ 
-					> (float)(y * CHUNK_SIZE + by topper) / WORD_HEIGHT / CHUNK_SIZE
-
-				for(int by = 0; by < CHUNK_SIZE; by++) {
+				for(int bx = 0; bx < CHUNK_SIZE; bx++) {
 					for(int bz = 0; bz < CHUNK_SIZE; bz++) {
-						for(int bx = 0; bx < CHUNK_SIZE; bx++) {
-							if(height_function()) {
-								chunks[x][y][z].blocks[bx][by][bz].type = BlockType::DIRT;	
-							} else if(height_function(- 1.0f)) {
-								chunks[x][y][z].blocks[bx][by][bz].type = BlockType::GRASS;	
-							} else chunks[x][y][z].blocks[bx][by][bz].type = BlockType::AIR;
+						float height = height_at_pos(cx * CHUNK_SIZE + bx, cz * CHUNK_SIZE + bz);
+						for(int by = 0; by < CHUNK_SIZE; by++) {
+							if(height > (float)(cy * CHUNK_SIZE + by) / (float)(CHUNK_SIZE * WORD_HEIGHT)) {
+								chunks[cx][cy][cz].blocks[bx][by][bz].type = BlockType::DIRT;
+							} else if(height + 1.0f/(float)(CHUNK_SIZE * WORD_HEIGHT) > (float)(cy * CHUNK_SIZE + by) / (float)(CHUNK_SIZE * WORD_HEIGHT)) {
+								chunks[cx][cy][cz].blocks[bx][by][bz].type = BlockType::GRASS;
+							} else chunks[cx][cy][cz].blocks[bx][by][bz].type = BlockType::AIR;
 						}
 					}
 				}
@@ -119,8 +105,8 @@ bool init_resources() {
 				if(y > 0) { chunks[x][y][z].adjacent_chunks[1] = &chunks[x][y - 1][z]; }
 				if(y + 1 < WORD_HEIGHT) chunks[x][y][z].adjacent_chunks[0] = &chunks[x][y + 1][z];
 
-				if(z > 0) { chunks[x][y][z].adjacent_chunks[4] = &chunks[x][y][z + 1]; }
-				if(z + 1 < LOAD_DISTANCE) chunks[x][y][z].adjacent_chunks[5] = &chunks[x][y][z - 1];
+				if(z > 0) { chunks[x][y][z].adjacent_chunks[5] = &chunks[x][y][z - 1]; }
+				if(z + 1 < LOAD_DISTANCE) chunks[x][y][z].adjacent_chunks[4] = &chunks[x][y][z + 1];
 				
 				chunks[x][y][z].update_mesh();
 			}
@@ -132,19 +118,21 @@ bool init_resources() {
 		cerr << "IMG_Load: " << SDL_GetError() << endl;
 		return false;
 	}
-	glGenTextures(1, &texture_id);
-	glBindTexture(GL_TEXTURE_2D, texture_id);
+	glGenTextures(1, &texture_atlas_id);
+	glBindTexture(GL_TEXTURE_2D, texture_atlas_id);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
-	glTexImage2D(GL_TEXTURE_2D, // target
-		0, // level, 0 = base, no minimap,
-		GL_RGBA, // internalformat
-		res_texture->w, // width
-		res_texture->h, // height
-		0, // border, always 0 in OpenGL ES
-		GL_RGBA, // format
-		GL_UNSIGNED_BYTE, // type
+	ui.res.atlas = &texture_atlas_id;
+
+	glTexImage2D(GL_TEXTURE_2D,
+		0,
+		GL_RGBA,
+		res_texture->w,
+		res_texture->h,
+		0,
+		GL_RGBA,
+		GL_UNSIGNED_BYTE,
 		res_texture->pixels);
 	SDL_FreeSurface(res_texture);
 
@@ -183,12 +171,12 @@ void setup() {
 	entities.push_back({
 		type: EntityType::Player,
 		name: (char*)"Player",
-		position: glm::vec3(10.0f, 16.0f*WORD_HEIGHT, 10.0f),
+		position: glm::vec3(LOAD_DISTANCE*CHUNK_SIZE/2, 16.0f*WORD_HEIGHT - 10.0f, LOAD_DISTANCE*CHUNK_SIZE/2),
 	});
 
 	glm::vec3 hit_pos;
 
-	if(raycast(&chunks, &entities[entities.size() - 1].position, glm::quat(glm::vec3(-M_PIf, 0.0, 0.0)), &hit_pos, 16.0f*WORD_HEIGHT + 20.0f, 0.1f)) {
+	if(raycast(&chunks, &entities[entities.size() - 1].position, glm::quat(glm::vec3(-M_PIf/2.0f, 0.0, 0.0)), &hit_pos, 16.0f*WORD_HEIGHT + 20.0f, 0.01f)) {
 		entities[entities.size() - 1].position = hit_pos;
 	}
 }
@@ -202,15 +190,13 @@ glm::mat4 camera_transform = glm::mat4(1.0f);
 bool firstDelta = true;
 double last_time = 0;
 double dt = 0;
-bool m_left, m_right, m_up, m_down, m_shift, m_space, m_click, m_click_lr = false;
+bool m_left, m_right, m_up, m_down, m_shift, m_ctrl, m_space, m_click, m_click_lr = false;
 
 glm::quat orientation = glm::quat(glm::vec3(0.0f, 0.0f, 0.0f));
 
 #define CLAMP_CHUNK(x, max) min(max(0.0f, x), max)
 
 void player_logic(Entity* player, float dt) {
-	player->velocity;
-
 	glm::vec2 move = glm::vec2(0.0f);
 
 	if(m_up) move.y = -1;
@@ -219,63 +205,25 @@ void player_logic(Entity* player, float dt) {
 	if(m_right) move.x = 1;
 
 	// Normalize angular movement
-	move /= abs(move.x) + abs(move.y) > 1 ? sqrt(2) : 1;
+	move = abs(move.x) + abs(move.y) > 0 ? glm::normalize(move) : move;
 
+	// TODO: RE-ENABLE running when it doesn't get you stuck
 	float y_angle = player->look_dir.x;
-	player->velocity.x = (cos(y_angle) * move.x - sin(y_angle) * move.y) * WALK_SPEED;
-	player->velocity.z = (sin(y_angle) * move.x + cos(y_angle) * move.y) * WALK_SPEED;
+	player->velocity.x = (cos(y_angle) * move.x - sin(y_angle) * move.y) * WALK_SPEED * (m_ctrl ? RUN_MULTIPLIER : 1.0f);
+	player->velocity.z = (sin(y_angle) * move.x + cos(y_angle) * move.y) * WALK_SPEED * (m_ctrl ? RUN_MULTIPLIER : 1.0f);
 
-	bool grounded = false;
-	for(int x = 0; x < 2; x++) {
-		for(int y = 0; y < 2; y++) {
-			glm::vec3 ray_start = player->position + glm::vec3((float)x*.90f - 0.45f, 0.0f, (float)y*.90f - 0.45f);
-			if(raycast(&chunks, &ray_start, glm::quat(glm::vec3(-M_PIf, 0.0f, 0.0f)), nullptr, .01f, .001f)) {
-				grounded = true;
-			}
-		}		
-	}
-
-	player->velocity.y = max(player->velocity.y - (GRAVITY*dt), -GRAVITY);
-	if(m_space && grounded) {
+	if(m_space && player->is_grounded) {
 		player->velocity.y = JUMP_FORCE;
 	}
-	//if(m_shift) player->velocity.y = -MOVE_SPEED;
 
-	if(grounded) { player->velocity.y = max(player->velocity.y, 0.0f); }
-
-	glm::vec3 check_pos = player->position;
-	check_pos.y += 0.1f;
-
-
-
-	bool hit_pos_z = raycast(&chunks, &check_pos, glm::quat(glm::vec3(0.0f, 0.0f, 0.0f)), nullptr, .5f, .001f);
-	bool hit_pos_x = raycast(&chunks, &check_pos, glm::quat(glm::vec3(0.0f, M_PIf/2.0f, 0.0f)), nullptr, .5f, .001f);
-	bool hit_neg_z = raycast(&chunks, &check_pos, glm::quat(glm::vec3(0.0f, M_PIf, 0.0f)), nullptr, .5f, .001f);
-	bool hit_neg_x = raycast(&chunks, &check_pos, glm::quat(glm::vec3(0.0f, -M_PIf/2.0f, 0.0f)), nullptr, .5f, .001f);
-
-	//printf("+x %i +z %i -x %i -z %i\n", hit_pos_x, hit_pos_z, hit_neg_x, hit_neg_z);
-
-	if(hit_pos_x) player->velocity.x = min(player->velocity.x, 0.0f);
-	if(hit_pos_z) player->velocity.z = max(player->velocity.z, 0.0f);
-	if(hit_neg_x) player->velocity.x = max(player->velocity.x, 0.0f);
-	if(hit_neg_z) player->velocity.z = min(player->velocity.z, 0.0f);
-
-	/* 
-		Rotate velocity
-		glm::rotate(glm::inverse(orientation), V3FORWARD)
-		glm::rotate(glm::inverse(orientation), V3RIGHT)
-	*/
-
-	player->position += V3FORWARD * player->velocity.z * dt;
-	player->position += V3UP * player->velocity.y * dt;
-	player->position += V3RIGHT * player->velocity.x * dt;
 	ui.pos = player->position;
 	ui.vel = player->velocity;
 
 	player->orientation = orientation;
 	offset = -player->position;
 
-	check_pos.y += PLAYER_HEIGHT - .6f;
+	glm::vec3 check_pos = player->position;
+	check_pos.y += PLAYER_HEIGHT - .5f;
 
 	//raycast(&chunks, &check_pos, orientation, &ui.hit_pos);
 
@@ -283,8 +231,50 @@ void player_logic(Entity* player, float dt) {
 		glm::vec3 hit_pos;
 
 		if(raycast(&chunks, &check_pos, orientation, &hit_pos, 5.0f)) {
-			chunks[floor(hit_pos.x/CHUNK_SIZE)][floor(hit_pos.y/CHUNK_SIZE)][floor(hit_pos.z/CHUNK_SIZE)]
-				.blocks[(int)floor(hit_pos.x)%16][(int)floor(hit_pos.y)%16][(int)floor(hit_pos.z)%16].type = m_click_lr ? BlockType::AIR : BlockType::DIRT;
+			#define CPOS(x) floor(x/CHUNK_SIZE)
+			int cx = CPOS(hit_pos.x);
+			int cy = CPOS(hit_pos.y);
+			int cz = CPOS(hit_pos.z);
+
+			#define BPOS(x) (int)floor(x)%16
+			int bx = BPOS(hit_pos.x);
+			int by = BPOS(hit_pos.y);
+			int bz = BPOS(hit_pos.z);
+
+			if(m_click_lr) {
+				chunks[cx][cy][cz]
+					.blocks[bx][by][bz].type = BlockType::AIR;
+			}else {
+				glm::vec3 block_hit = glm::vec3(fmodf(hit_pos.x, CHUNK_SIZE), fmodf(hit_pos.y, CHUNK_SIZE), fmodf(hit_pos.z, CHUNK_SIZE));
+
+				// Centered
+				glm::vec3 block_center = glm::vec3((float)bx + .5f, (float)by + .5f, (float)bz + .5f);
+
+				glm::vec3 ray2center = block_hit - block_center;
+				glm::vec3 ray_out;
+				if(abs(ray2center.x) > abs(ray2center.y) && abs(ray2center.x) > abs(ray2center.z)) {
+					ray_out = ray2center.x > 0.0f ? V3RIGHT : -V3RIGHT;
+				}else if(abs(ray2center.y) > abs(ray2center.x) && abs(ray2center.y) > abs(ray2center.z)) {
+					ray_out = ray2center.y > 0.0f ? V3UP : -V3UP;
+				}else {
+					ray_out = ray2center.z > 0.0f ? V3FORWARD : -V3FORWARD;
+				}
+
+				int nbx = bx + (int)ray_out.x;
+				int nby = by + (int)ray_out.y;
+				int nbz = bz + (int)ray_out.z;
+
+				cx += nbx > CHUNK_SIZE - 1 ? 1 : (nbx < 0 ? -1 : 0);
+				cy += nby > CHUNK_SIZE - 1 ? 1 : (nby < 0 ? -1 : 0);
+				cz += nbz > CHUNK_SIZE - 1 ? 1 : (nbz < 0 ? -1 : 0);
+
+				nbx = (nbx < 0 ? CHUNK_SIZE - 1 : nbx) % CHUNK_SIZE;
+				nby = (nby < 0 ? CHUNK_SIZE - 1 : nby) % CHUNK_SIZE;
+				nbz = (nbz < 0 ? CHUNK_SIZE - 1 : nbz) % CHUNK_SIZE;
+				
+				chunks[cx][cy][cz]
+				.blocks[nbx][nby][nbz].type = m_click_lr ? BlockType::AIR : BlockType::DIRT;
+			}
 			
 			chunks[floor(hit_pos.x/CHUNK_SIZE)][floor(hit_pos.y/CHUNK_SIZE)][floor(hit_pos.z/CHUNK_SIZE)].update_area(chunks);
 		}
@@ -297,26 +287,30 @@ void player_logic(Entity* player, float dt) {
 float gt = 0;
 
 void logic() {
+	double ticks = (double)SDL_GetTicks64();
 	if(!firstDelta) {
-		dt = ((double)SDL_GetTicks64() - last_time) / 1000.0;
+		dt = (ticks - last_time) / 1000.0;
 	} else firstDelta = false;
 
 	world->update(dt);
-	last_time = SDL_GetTicks64();
+	last_time = ticks;
 
 	gt = SDL_GetTicks() / 1000.0f / DAY_NIGHT_TIME / 60.0f + .5f;
 
-	ui.fps = dt * 1000.0;
+	ui.fps = 1000.0 / (dt * 1000.0);
 	//ui.fps /= 2.0f;
 
 	for(Entity& entity : entities) {
 		if(!entity.is_owned) continue;
+
 		switch (entity.type) {
 			case EntityType::Player:
 				entity.look_dir = look_dir;
 				player_logic(&entity, dt);
 				break;
 		}
+
+		process_entity_physics(entity, &chunks, dt);
 	}
 
 	ui.look_dir = look_dir;
@@ -400,7 +394,7 @@ void render(SDL_Renderer* renderer, SDL_Window* window) {
 
 				glActiveTexture(GL_TEXTURE0);
 				glUniform1i(uniform_mytexture, /*GL_TEXTURE*/0);
-				glBindTexture(GL_TEXTURE_2D, texture_id);
+				glBindTexture(GL_TEXTURE_2D, texture_atlas_id);
 				
 				/* Push each element in buffer_vertices to the vertex shader */
 				glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, chunks[x][y][z].ibo_elements);
@@ -428,7 +422,7 @@ void onResize(int width, int height) {
 
 void free_resources() {
 	glDeleteProgram(program);
-	glDeleteTextures(1, &texture_id);
+	glDeleteTextures(1, &texture_atlas_id);
 	
 	ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplSDL2_Shutdown();
@@ -445,6 +439,8 @@ void check_input(SDL_Scancode code, bool val) {
 		m_right = val;
 	}else if(code == prefs.input.crouch) {
 		m_shift = val;
+	}else if(code == prefs.input.sprint) {
+		m_ctrl = val;
 	}else if(code == prefs.input.jump) {
 		m_space = val;
 	}else {
@@ -517,7 +513,7 @@ void mainLoop(SDL_Renderer* renderer, SDL_Window* window, ImGuiIO& io) {
 int main(int argc, char* argv[]) {
 	printf("Start Block\n");
 
-	Preferences::load(&prefs);
+	prefs.load();
 
 	/* SDL-related initialising functions */
 	SDL_Init(SDL_INIT_VIDEO);
@@ -538,7 +534,7 @@ int main(int argc, char* argv[]) {
 
 	SDL_SetHint(SDL_HINT_APP_NAME, GAME_TITLE);
 
-	SDL_SetHint(SDL_HINT_RENDER_VSYNC, "0");
+	SDL_SetHint(SDL_HINT_RENDER_VSYNC, "1");
 	
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
@@ -588,7 +584,7 @@ int main(int argc, char* argv[]) {
 
 	/* When all init functions run without errors,
 	   the program can initialise the resources */
-	if (!init_resources())
+	if (!init_resources(renderer))
 		return EXIT_FAILURE;
 
 	apply_prefs(window);
@@ -597,7 +593,7 @@ int main(int argc, char* argv[]) {
 	setup();
 	mainLoop(renderer, window, io);
 
-	Preferences::save(&prefs);
+	prefs.save();
 
 	/* If the program exits in the usual way,
 	   free resources and exit with a success */

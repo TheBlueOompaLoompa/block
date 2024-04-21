@@ -20,4 +20,5 @@ struct Entity {
     glm::quat orientation = glm::quat(glm::vec3(0.0f, 0.0f, 0.0f));
 
     bool is_owned = true;
+    bool is_grounded = false;
 };

@@ -11,6 +11,7 @@ struct InputPreferences {
     SDL_Scancode right = SDL_SCANCODE_D;
 
     SDL_Scancode jump = SDL_SCANCODE_SPACE;
+    SDL_Scancode sprint = SDL_SCANCODE_LCTRL;
     SDL_Scancode crouch = SDL_SCANCODE_LSHIFT;
 };
 
@@ -28,18 +29,18 @@ struct Preferences {
     InputPreferences input;
     GraphicsPreferences graphics;
 
-    static void save(Preferences *self) {
+    void save() {
         auto file = fopen(PREFS_FILE, "w");
 
-        fwrite(self, sizeof(Preferences), 1, file);
+        fwrite(this, sizeof(Preferences), 1, file);
         fclose(file);
     }
 
-    static void load(Preferences *self) {
+    void load() {
         if(!std::filesystem::exists(PREFS_FILE)) return;
         auto file = fopen(PREFS_FILE, "r");
 
-        fread(self, sizeof(Preferences), 1, file);
+        fread(this, sizeof(Preferences), 1, file);
         fclose(file);
     }
 };

@@ -124,7 +124,6 @@ struct Chunk {
         glm::vec3 normal = glm::cross(up, right);
         glm::vec3 dir = glm::cross(up, right) * glm::vec3(chkFlip ? 0 : (flip ? -1 : 1));
         if(chk_block(dir.x + sx, dir.y + sy, dir.z + sz)) return;
-
         // TODO: Find a way to store the surface normal only once
 
         normal *= !chkFlip ? -1 : 1;
@@ -144,25 +143,24 @@ struct Chunk {
             glm::dot(normal, V3RIGHT) < 0
         ) { flip_x = true; }
 
-        #define ATLAS_TEX_COUNT 2.0f
         // Subtract one because of air
         float atlas_offset = (float)block_type - 1;
 
         vertices.push_back({
             pos: glm::vec3((float)sx, (float)sy, (float)sz),
-            uv: glm::vec2((flip_y ? 1.0f : 0.0f), ((flip_x ? 1.0f : 0.0f) + atlas_offset) / ATLAS_TEX_COUNT)
+            uv: glm::vec2((flip_y ? 1.0f : 0.0f) / ATLAS_ROWS + (ATLAS_ROWS - 1.0) / ATLAS_ROWS, ((flip_x ? 1.0f : 0.0f) + atlas_offset) / ATLAS_TEX_COUNT)
         });
         vertices.push_back({
             pos: glm::vec3((float)(sx + right.x), (float)(sy + right.y), (float)(sz + right.z)),
-            uv: glm::vec2((flip_y ? 0.0f : 1.0f), ((flip_x ? 1.0f : 0.0f) + atlas_offset) / ATLAS_TEX_COUNT)
+            uv: glm::vec2((flip_y ? 0.0f : 1.0f) / ATLAS_ROWS + (ATLAS_ROWS - 1.0) / ATLAS_ROWS, ((flip_x ? 1.0f : 0.0f) + atlas_offset) / ATLAS_TEX_COUNT)
         });
         vertices.push_back({
             pos: glm::vec3((float)(sx + right.x + up.x), (float)(sy + right.y + up.y), (float)(sz + right.z + up.z)),
-            uv: glm::vec2((flip_y ? 0.0f : 1.0f), ((flip_x ? 0.0f : 1.0f) + atlas_offset) / ATLAS_TEX_COUNT)
+            uv: glm::vec2((flip_y ? 0.0f : 1.0f) / ATLAS_ROWS + (ATLAS_ROWS - 1.0) / ATLAS_ROWS, ((flip_x ? 0.0f : 1.0f) + atlas_offset) / ATLAS_TEX_COUNT)
         });
         vertices.push_back({
             pos: glm::vec3((float)(sx + up.x), (float)(sy + up.y), (float)(sz + up.z)),
-            uv: glm::vec2((flip_y ? 1.0f : 0.0f), ((flip_x ? 0.0f : 1.0f) + atlas_offset) / ATLAS_TEX_COUNT)
+            uv: glm::vec2((flip_y ? 1.0f : 0.0f) / ATLAS_ROWS + (ATLAS_ROWS - 1.0) / ATLAS_ROWS, ((flip_x ? 0.0f : 1.0f) + atlas_offset) / ATLAS_TEX_COUNT)
         });
 
         if(flip) {
