@@ -18,7 +18,7 @@
 // In minutes
 #define DAY_NIGHT_TIME 20.0f
 
-#define ATLAS_COLS 2.0f
+#define ATLAS_COLS 4.0f
 #define ATLAS_ROWS 2.0f
 
 

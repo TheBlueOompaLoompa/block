@@ -6,7 +6,9 @@ enum BlockType
 {
     AIR,
     DIRT,
-    GRASS
+    GRASS,
+    STONE,
+    IRON_ORE
 };
 
 struct Block {

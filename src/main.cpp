@@ -80,15 +80,27 @@ bool init_resources(SDL_Renderer* renderer) {
 				chunks[cx][cy][cz].y = cy;
 				chunks[cx][cy][cz].z = cz;
 
+				#define HEIGHT_OFFSET(x, offset) x + (offset)/(float)(CHUNK_SIZE * WORD_HEIGHT)
+				#define MAKE_WORLD(cx, bx) cx * CHUNK_SIZE + bx
+
 				for(int bx = 0; bx < CHUNK_SIZE; bx++) {
 					for(int bz = 0; bz < CHUNK_SIZE; bz++) {
-						float height = height_at_pos(cx * CHUNK_SIZE + bx, cz * CHUNK_SIZE + bz);
+						float height = height_at_pos(MAKE_WORLD(cx, bx), MAKE_WORLD(cz, bz));
 						for(int by = 0; by < CHUNK_SIZE; by++) {
-							if(height > (float)(cy * CHUNK_SIZE + by) / (float)(CHUNK_SIZE * WORD_HEIGHT)) {
-								chunks[cx][cy][cz].blocks[bx][by][bz].type = BlockType::DIRT;
-							} else if(height + 1.0f/(float)(CHUNK_SIZE * WORD_HEIGHT) > (float)(cy * CHUNK_SIZE + by) / (float)(CHUNK_SIZE * WORD_HEIGHT)) {
-								chunks[cx][cy][cz].blocks[bx][by][bz].type = BlockType::GRASS;
-							} else chunks[cx][cy][cz].blocks[bx][by][bz].type = BlockType::AIR;
+							float relative_y = (float)(cy * CHUNK_SIZE + by) / (float)(CHUNK_SIZE * WORD_HEIGHT);
+							BlockType new_type = BlockType::AIR;
+
+							if(HEIGHT_OFFSET(height, -10.0) > relative_y) {
+								new_type = cave_gen(MAKE_WORLD(cx, bx), MAKE_WORLD(cy, by), MAKE_WORLD(cz, bz));
+							}else if(HEIGHT_OFFSET(height, -3.0) > relative_y) {
+								new_type = BlockType::STONE;
+							}else if(height > relative_y) {
+								new_type = BlockType::DIRT;
+							} else if(HEIGHT_OFFSET(height, 1.0f) > relative_y) {
+								new_type = BlockType::GRASS;
+							}
+
+							chunks[cx][cy][cz].blocks[bx][by][bz].type = new_type;
 						}
 					}
 				}
@@ -194,6 +206,8 @@ bool m_left, m_right, m_up, m_down, m_shift, m_ctrl, m_space, m_click, m_click_l
 
 glm::quat orientation = glm::quat(glm::vec3(0.0f, 0.0f, 0.0f));
 
+BlockType block_place_type = BlockType::DIRT;
+
 #define CLAMP_CHUNK(x, max) min(max(0.0f, x), max)
 
 void player_logic(Entity* player, float dt) {
@@ -273,7 +287,7 @@ void player_logic(Entity* player, float dt) {
 				nbz = (nbz < 0 ? CHUNK_SIZE - 1 : nbz) % CHUNK_SIZE;
 				
 				chunks[cx][cy][cz]
-				.blocks[nbx][nby][nbz].type = m_click_lr ? BlockType::AIR : BlockType::DIRT;
+				.blocks[nbx][nby][nbz].type = block_place_type;
 			}
 			
 			chunks[floor(hit_pos.x/CHUNK_SIZE)][floor(hit_pos.y/CHUNK_SIZE)][floor(hit_pos.z/CHUNK_SIZE)].update_area(chunks);
@@ -349,8 +363,7 @@ void render(SDL_Renderer* renderer, SDL_Window* window) {
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	glDrawBuffer(GL_BACK);
 
-	/* Clear the background as white */
-	glClearColor(0.1, 0.1, 0.1, 1.0);
+	glClearColor(0.3, 0.5, 0.8, 1.0);
 	glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
 
 	glUseProgram(program);
@@ -443,6 +456,8 @@ void check_input(SDL_Scancode code, bool val) {
 		m_ctrl = val;
 	}else if(code == prefs.input.jump) {
 		m_space = val;
+	}else if(code >= SDL_SCANCODE_1 && code <= SDL_SCANCODE_4) {
+		block_place_type = (BlockType)(code - 29);
 	}else {
 		switch(code) {
 			case SDL_SCANCODE_F3:
