@@ -3,7 +3,7 @@
 #include <vector>
 #include <GL/glew.h>
 #include <glm/glm.hpp>
-#include <reactphysics3d/reactphysics3d.h>
+#include <sys/stat.h>
 
 #include "block.hpp"
 #include "geometry.hpp"
@@ -40,7 +40,7 @@ struct Chunk {
         if(y > 0) chunks[x][y - 1][z].update_mesh();
         if(z > 0) chunks[x][y][z - 1].update_mesh();
         if(x < LOAD_DISTANCE - 1) chunks[x + 1][y][z].update_mesh();
-        if(y < WORD_HEIGHT - 1) chunks[x][y + 1][z].update_mesh();
+        if(y < WORLD_HEIGHT - 1) chunks[x][y + 1][z].update_mesh();
         if(z < LOAD_DISTANCE - 1) chunks[x][y][z + 1].update_mesh();
     }
 
@@ -182,8 +182,31 @@ struct Chunk {
         }
     }
 
+    void save() {
+        if(!std::filesystem::exists("chunks")) {
+            mkdir("chunks");
+        }
+
+        char fname[100];
+        fprintf(&fname, "%i %i %i.chunk", x, y, z);
+
+        auto file = fopen(fname, "w");
+
+        fwrite(this, sizeof(Chunk), 1, file);
+        fclose(file);
+    }
+
+    /*void load() {
+        if(!std::filesystem::exists(PREFS_FILE)) return;
+        auto file = fopen(PREFS_FILE, "r");
+
+        fread(this, sizeof(Preferences), 1, file);
+        fclose(file);
+    }*/
+
     void destroy() {
         glDeleteBuffers(1, &vbo_vertices);
+        glDeleteBuffers(1, &nbo_normals);
         glDeleteBuffers(1, &ibo_elements);
     }
 };

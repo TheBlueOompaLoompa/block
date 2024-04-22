@@ -72,8 +72,8 @@ bool init_resources(SDL_Renderer* renderer) {
 
 	chunks = vector<vector<vector<Chunk>>>(LOAD_DISTANCE);
 	for(int cx = 0; cx < LOAD_DISTANCE; cx++) {
-		chunks[cx] = vector<vector<Chunk>>(WORD_HEIGHT);
-		for(int cy = 0; cy < WORD_HEIGHT; cy++) {
+		chunks[cx] = vector<vector<Chunk>>(WORLD_HEIGHT);
+		for(int cy = 0; cy < WORLD_HEIGHT; cy++) {
 			chunks[cx][cy] = vector<Chunk>(LOAD_DISTANCE);
 			for(int cz = 0; cz < LOAD_DISTANCE; cz++) {
 				chunks[cx][cy][cz].x = cx;
@@ -87,7 +87,7 @@ bool init_resources(SDL_Renderer* renderer) {
 					for(int bz = 0; bz < CHUNK_SIZE; bz++) {
 						float height = height_at_pos(MAKE_WORLD(cx, bx), MAKE_WORLD(cz, bz));
 						for(int by = 0; by < CHUNK_SIZE; by++) {
-							float relative_y = (float)(cy * CHUNK_SIZE + by) / (float)(CHUNK_SIZE * WORD_HEIGHT);
+							float relative_y = (float)(cy * CHUNK_SIZE + by) / (float)(CHUNK_SIZE * WORLD_HEIGHT);
 							BlockType new_type = BlockType::AIR;
 
 							if(HEIGHT_OFFSET(height, -10.0) > relative_y) {
@@ -109,13 +109,13 @@ bool init_resources(SDL_Renderer* renderer) {
 	}
 
 	for(int x = 0; x < LOAD_DISTANCE; x++) {
-		for(int y = 0; y < WORD_HEIGHT; y++) {
+		for(int y = 0; y < WORLD_HEIGHT; y++) {
 			for(int z = 0; z < LOAD_DISTANCE; z++) {
 				if(x > 0) { chunks[x][y][z].adjacent_chunks[3] = &chunks[x - 1][y][z]; }
 				if(x + 1 < LOAD_DISTANCE) { chunks[x][y][z].adjacent_chunks[2] = &chunks[x + 1][y][z]; }
 				
 				if(y > 0) { chunks[x][y][z].adjacent_chunks[1] = &chunks[x][y - 1][z]; }
-				if(y + 1 < WORD_HEIGHT) chunks[x][y][z].adjacent_chunks[0] = &chunks[x][y + 1][z];
+				if(y + 1 < WORLD_HEIGHT) chunks[x][y][z].adjacent_chunks[0] = &chunks[x][y + 1][z];
 
 				if(z > 0) { chunks[x][y][z].adjacent_chunks[5] = &chunks[x][y][z - 1]; }
 				if(z + 1 < LOAD_DISTANCE) chunks[x][y][z].adjacent_chunks[4] = &chunks[x][y][z + 1];
@@ -183,12 +183,12 @@ void setup() {
 	entities.push_back({
 		type: EntityType::Player,
 		name: (char*)"Player",
-		position: glm::vec3(LOAD_DISTANCE*CHUNK_SIZE/2, 16.0f*WORD_HEIGHT - 10.0f, LOAD_DISTANCE*CHUNK_SIZE/2),
+		position: glm::vec3(LOAD_DISTANCE*CHUNK_SIZE/2, 16.0f*WORLD_HEIGHT - 10.0f, LOAD_DISTANCE*CHUNK_SIZE/2),
 	});
 
 	glm::vec3 hit_pos;
 
-	if(raycast(&chunks, &entities[entities.size() - 1].position, glm::quat(glm::vec3(-M_PIf/2.0f, 0.0, 0.0)), &hit_pos, 16.0f*WORD_HEIGHT + 20.0f, 0.01f)) {
+	if(raycast(&chunks, &entities[entities.size() - 1].position, glm::quat(glm::vec3(-M_PIf/2.0f, 0.0, 0.0)), &hit_pos, 16.0f*WORLD_HEIGHT + 20.0f, 0.01f)) {
 		entities[entities.size() - 1].position = hit_pos;
 	}
 }
@@ -369,7 +369,7 @@ void render(SDL_Renderer* renderer, SDL_Window* window) {
 	glUseProgram(program);
 
 	for(int x = 0; x < LOAD_DISTANCE; x++) {
-		for(int y = 0; y < WORD_HEIGHT; y++) {
+		for(int y = 0; y < WORLD_HEIGHT; y++) {
 			for(int z = 0; z < LOAD_DISTANCE; z++) {
 				glEnableVertexAttribArray(attribute_coord3d);
 				glBindBuffer(GL_ARRAY_BUFFER, chunks[x][y][z].vbo_vertices);
@@ -609,6 +609,14 @@ int main(int argc, char* argv[]) {
 	mainLoop(renderer, window, io);
 
 	prefs.save();
+
+	for(int x = 0; x < LOAD_DISTANCE; x++) {
+		for(int y = 0; y < WORLD_HEIGHT; y++) {
+			for(int z = 0; z < WORLD_HEIGHT; z++) {
+				chunks[x][y][z].save();
+			}
+		}
+	}
 
 	/* If the program exits in the usual way,
 	   free resources and exit with a success */

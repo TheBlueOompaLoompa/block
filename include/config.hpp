@@ -26,4 +26,4 @@
 * In Chunks
 */
 #define LOAD_DISTANCE 16
-#define WORD_HEIGHT 16
+#define WORLD_HEIGHT 16
