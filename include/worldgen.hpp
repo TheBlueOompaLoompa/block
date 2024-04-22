@@ -22,13 +22,7 @@ float height_at_pos(float x, float z) {
     float filter = std::max(RESCALE(noise.GetNoise(x / 20.0f, z / 20.0f)*4.0f) - 0.2f, 0.0f);
 
     float height = mountain_height * filter + flat_height * (1.0f - filter);
-
-    /*
-    #define height_function(topper) \
-					(noise.GetNoise((float)(x * CHUNK_SIZE + bx), (float)(z * CHUNK_SIZE + bz)) + 1.0f) / 2.0f / 2.0f \
-					/ (noise.GetNoise((float)(x * 4.0f + bx), (float)(z  * 4.0f + bz)) + 1.0f) / 2.0f / 2.0f /2.0f \ 
-					> (float)(y * CHUNK_SIZE + by topper) / WORD_HEIGHT / CHUNK_SIZE
-    */
+    
     return height;
 }
 

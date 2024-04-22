@@ -19,7 +19,7 @@ LOOK with your mouse
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
 #include <SDL2/SDL_ttf.h>
-#include <reactphysics3d/reactphysics3d.h>
+#include <sys/stat.h>
 
 #include "imgui.h"
 #include "backends/imgui_impl_sdl2.h"
@@ -47,9 +47,6 @@ GLint uniform_time;
 
 vector<vector<vector<Chunk>>> chunks;
 vector<Entity> entities;
-
-rp3d::PhysicsCommon physicsCommon;
-rp3d::PhysicsWorld* world = physicsCommon.createPhysicsWorld();
 
 UIData ui;
 
@@ -80,27 +77,31 @@ bool init_resources(SDL_Renderer* renderer) {
 				chunks[cx][cy][cz].y = cy;
 				chunks[cx][cy][cz].z = cz;
 
-				#define HEIGHT_OFFSET(x, offset) x + (offset)/(float)(CHUNK_SIZE * WORD_HEIGHT)
+				chunks[cx][cy][cz].load();
+
+				#define HEIGHT_OFFSET(x, offset) x + (offset)/(float)(CHUNK_SIZE * WORLD_HEIGHT)
 				#define MAKE_WORLD(cx, bx) cx * CHUNK_SIZE + bx
 
-				for(int bx = 0; bx < CHUNK_SIZE; bx++) {
-					for(int bz = 0; bz < CHUNK_SIZE; bz++) {
-						float height = height_at_pos(MAKE_WORLD(cx, bx), MAKE_WORLD(cz, bz));
-						for(int by = 0; by < CHUNK_SIZE; by++) {
-							float relative_y = (float)(cy * CHUNK_SIZE + by) / (float)(CHUNK_SIZE * WORLD_HEIGHT);
-							BlockType new_type = BlockType::AIR;
+				if(!chunks[cx][cy][cz].changed) {
+					for(int bx = 0; bx < CHUNK_SIZE; bx++) {
+						for(int bz = 0; bz < CHUNK_SIZE; bz++) {
+							float height = height_at_pos(MAKE_WORLD(cx, bx), MAKE_WORLD(cz, bz));
+							for(int by = 0; by < CHUNK_SIZE; by++) {
+								float relative_y = (float)(cy * CHUNK_SIZE + by) / (float)(CHUNK_SIZE * WORLD_HEIGHT);
+								BlockType new_type = BlockType::AIR;
 
-							if(HEIGHT_OFFSET(height, -10.0) > relative_y) {
-								new_type = cave_gen(MAKE_WORLD(cx, bx), MAKE_WORLD(cy, by), MAKE_WORLD(cz, bz));
-							}else if(HEIGHT_OFFSET(height, -3.0) > relative_y) {
-								new_type = BlockType::STONE;
-							}else if(height > relative_y) {
-								new_type = BlockType::DIRT;
-							} else if(HEIGHT_OFFSET(height, 1.0f) > relative_y) {
-								new_type = BlockType::GRASS;
+								if(HEIGHT_OFFSET(height, -10.0) > relative_y) {
+									new_type = cave_gen(MAKE_WORLD(cx, bx), MAKE_WORLD(cy, by), MAKE_WORLD(cz, bz));
+								}else if(HEIGHT_OFFSET(height, -3.0) > relative_y) {
+									new_type = BlockType::STONE;
+								}else if(height > relative_y) {
+									new_type = BlockType::DIRT;
+								} else if(HEIGHT_OFFSET(height, 1.0f) > relative_y) {
+									new_type = BlockType::GRASS;
+								}
+
+								chunks[cx][cy][cz].blocks[bx][by][bz].type = new_type;
 							}
-
-							chunks[cx][cy][cz].blocks[bx][by][bz].type = new_type;
 						}
 					}
 				}
@@ -183,12 +184,14 @@ void setup() {
 	entities.push_back({
 		type: EntityType::Player,
 		name: (char*)"Player",
-		position: glm::vec3(LOAD_DISTANCE*CHUNK_SIZE/2, 16.0f*WORLD_HEIGHT - 10.0f, LOAD_DISTANCE*CHUNK_SIZE/2),
+		position: glm::vec3(LOAD_DISTANCE*CHUNK_SIZE/2 + .5f, (CHUNK_SIZE - 1.0f)*WORLD_HEIGHT, LOAD_DISTANCE*CHUNK_SIZE/2 + .5f),
 	});
 
 	glm::vec3 hit_pos;
 
-	if(raycast(&chunks, &entities[entities.size() - 1].position, glm::quat(glm::vec3(-M_PIf/2.0f, 0.0, 0.0)), &hit_pos, 16.0f*WORLD_HEIGHT + 20.0f, 0.01f)) {
+	bool hit_ground = raycast(&chunks, &entities[0].position, V3UP, &hit_pos, 16.0f*(float)WORLD_HEIGHT, .001f);
+
+	if(hit_ground) {
 		entities[entities.size() - 1].position = hit_pos;
 	}
 }
@@ -287,8 +290,10 @@ void player_logic(Entity* player, float dt) {
 				nbz = (nbz < 0 ? CHUNK_SIZE - 1 : nbz) % CHUNK_SIZE;
 				
 				chunks[cx][cy][cz]
-				.blocks[nbx][nby][nbz].type = block_place_type;
+					.blocks[nbx][nby][nbz].type = block_place_type;
 			}
+
+			chunks[cx][cy][cz].changed = true;
 			
 			chunks[floor(hit_pos.x/CHUNK_SIZE)][floor(hit_pos.y/CHUNK_SIZE)][floor(hit_pos.z/CHUNK_SIZE)].update_area(chunks);
 		}
@@ -306,7 +311,6 @@ void logic() {
 		dt = (ticks - last_time) / 1000.0;
 	} else firstDelta = false;
 
-	world->update(dt);
 	last_time = ticks;
 
 	gt = SDL_GetTicks() / 1000.0f / DAY_NIGHT_TIME / 60.0f + .5f;
@@ -359,13 +363,7 @@ void logic() {
 	glUniform1f(uniform_time, gt);
 }
 
-void render(SDL_Renderer* renderer, SDL_Window* window) {
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	glDrawBuffer(GL_BACK);
-
-	glClearColor(0.3, 0.5, 0.8, 1.0);
-	glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
-
+void render_chunks(SDL_Renderer* renderer, SDL_Window* window) {
 	glUseProgram(program);
 
 	for(int x = 0; x < LOAD_DISTANCE; x++) {
@@ -417,6 +415,17 @@ void render(SDL_Renderer* renderer, SDL_Window* window) {
 		}
 	}
 
+	
+}
+
+void render(SDL_Renderer* renderer, SDL_Window* window) {
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glDrawBuffer(GL_BACK);
+
+	glClearColor(0.3, 0.5, 0.8, 1.0);
+	glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+		
+	if(!ui.main_menu) render_chunks(renderer, window);
 	if(render_ui(&ui, &prefs)) {
 		apply_prefs(window);
 	}
@@ -521,9 +530,15 @@ void mainLoop(SDL_Renderer* renderer, SDL_Window* window, ImGuiIO& io) {
 		if(ui.quit) { return; }
 
 		logic();
+		
 		render(renderer, window);
 	}
 }
+
+struct WorldSaveData {
+	glm::vec3 player_pos;
+	glm::vec2 look_dir;
+};
 
 int main(int argc, char* argv[]) {
 	printf("Start Block\n");
@@ -606,14 +621,37 @@ int main(int argc, char* argv[]) {
 
 	/* We can display something if everything goes OK */
 	setup();
+
+	WorldSaveData data = {
+		.player_pos = entities[0].position,
+		.look_dir = look_dir
+	};
+
+	chk_mkdir("worlds");
+	chk_mkdir("worlds/hello");
+
+	if(std::filesystem::exists("worlds/hello/world.bin")) {
+		load_data("worlds/hello/world.bin", &data, sizeof(WorldSaveData));	
+	}
+
+	entities[0].position = data.player_pos;
+	look_dir = data.look_dir;
+
 	mainLoop(renderer, window, io);
+
+	data = {
+		.player_pos = entities[0].position,
+		.look_dir = look_dir
+	};
+
+	save_data("worlds/hello/world.bin", &data, sizeof(WorldSaveData));
 
 	prefs.save();
 
 	for(int x = 0; x < LOAD_DISTANCE; x++) {
 		for(int y = 0; y < WORLD_HEIGHT; y++) {
 			for(int z = 0; z < WORLD_HEIGHT; z++) {
-				chunks[x][y][z].save();
+				if(chunks[x][y][z].changed) chunks[x][y][z].save();
 			}
 		}
 	}

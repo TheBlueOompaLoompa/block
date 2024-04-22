@@ -1,8 +1,9 @@
 #pragma once
 
 #include <glm/glm.hpp>
-
 #include <SDL2/SDL.h>
+
+#include "util.hpp"
 
 struct InputPreferences {
     SDL_Scancode forward = SDL_SCANCODE_W;
@@ -30,17 +31,11 @@ struct Preferences {
     GraphicsPreferences graphics;
 
     void save() {
-        auto file = fopen(PREFS_FILE, "w");
-
-        fwrite(this, sizeof(Preferences), 1, file);
-        fclose(file);
+        save_data(PREFS_FILE, this, sizeof(Preferences));
     }
 
     void load() {
         if(!std::filesystem::exists(PREFS_FILE)) return;
-        auto file = fopen(PREFS_FILE, "r");
-
-        fread(this, sizeof(Preferences), 1, file);
-        fclose(file);
+        load_data(PREFS_FILE, this, sizeof(Preferences));
     }
 };

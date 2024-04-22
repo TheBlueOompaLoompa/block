@@ -11,12 +11,18 @@
 
 #define CHUNK_SIZE 16
 
+struct ChunkSaveData {
+    Block blocks[CHUNK_SIZE][CHUNK_SIZE][CHUNK_SIZE];
+};
+
 struct Chunk {
     int x = 0;
     int y = 0;
     int z = 0;
 
     Block blocks[CHUNK_SIZE][CHUNK_SIZE][CHUNK_SIZE]; // XYZ
+
+    bool changed = false;
 
     GLuint vbo_vertices;
     GLuint nbo_normals;
@@ -183,26 +189,35 @@ struct Chunk {
     }
 
     void save() {
-        if(!std::filesystem::exists("chunks")) {
-            mkdir("chunks");
-        }
+        chk_mkdir("chunks");
 
-        char fname[100];
-        fprintf(&fname, "%i %i %i.chunk", x, y, z);
+        char* fname = (char*)malloc(100);
+        sprintf(fname, "chunks/%i %i %i.chunk", x, y, z);
 
-        auto file = fopen(fname, "w");
+        ChunkSaveData data;
+        memcpy(&data.blocks, &blocks, sizeof(data.blocks));
 
-        fwrite(this, sizeof(Chunk), 1, file);
-        fclose(file);
+        save_data(fname, &data, sizeof(ChunkSaveData));
+        free(fname);
     }
 
-    /*void load() {
-        if(!std::filesystem::exists(PREFS_FILE)) return;
-        auto file = fopen(PREFS_FILE, "r");
+    void load() {
+        char* fname = (char*)malloc(100);
+        sprintf(fname, "chunks/%i %i %i.chunk", x, y, z);
 
-        fread(this, sizeof(Preferences), 1, file);
-        fclose(file);
-    }*/
+        if(!std::filesystem::exists(fname)) {
+            free(fname);
+            return;
+        }
+
+        ChunkSaveData chunk_data;
+        load_data(fname, &chunk_data, sizeof(ChunkSaveData));
+        memcpy(&blocks, &chunk_data.blocks, sizeof(chunk_data.blocks));
+
+        changed = true;
+
+        free(fname);
+    }
 
     void destroy() {
         glDeleteBuffers(1, &vbo_vertices);

@@ -12,8 +12,9 @@ struct UIResources {
 };
 
 struct UIData {
-    bool f3;
-    bool esc;
+    bool f3 = false;
+    bool esc = false;
+    bool main_menu = true;
     bool quit = false;
 
     glm::vec3 pos;
@@ -48,65 +49,87 @@ bool render_ui(UIData* ui, Preferences *prefs) {
     ImGui_ImplSDL2_NewFrame();
     ImGui::NewFrame();
 
-    if(ui->f3) {
-        ImGui::Begin("F3 Menu", &ui->f3, 
-            ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize |
-            ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoFocusOnAppearing|
-            ImGuiWindowFlags_NoInputs);
-        ImGui::SetWindowFontScale(1.5f);
-        ImGui::Text("Position\nX %f\nY %f\nZ %f", V3FMT(ui->pos));
-        ImGui::Text("Hit Pos\nX %f\nY %f\nZ %f", V3FMT(ui->hit_pos));
-        ImGui::Text("Velocity X %f Y %f Z %f", V3FMT(ui->vel));
-        ImGui::Text("Look dir X %f Y %f", V2FMT(ui->look_dir));
-        ImGui::Text("Window size %i %i", prefs->width, prefs->height);
-        ImGui::Text("FPS %f", ui->fps);
-        ImGui::Text("Time %f", ui->time);
-        ImGui::End();
-    }
+    if(!ui->main_menu) {
+        if(ui->f3) {
+            ImGui::Begin("F3 Menu", &ui->f3, 
+                ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize |
+                ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoFocusOnAppearing|
+                ImGuiWindowFlags_NoInputs);
+            ImGui::SetWindowFontScale(1.5f);
+            ImGui::Text("Position\nX %f\nY %f\nZ %f", V3FMT(ui->pos));
+            ImGui::Text("Hit Pos\nX %f\nY %f\nZ %f", V3FMT(ui->hit_pos));
+            ImGui::Text("Velocity X %f Y %f Z %f", V3FMT(ui->vel));
+            ImGui::Text("Look dir X %f Y %f", V2FMT(ui->look_dir));
+            ImGui::Text("Window size %i %i", prefs->width, prefs->height);
+            ImGui::Text("FPS %f", ui->fps);
+            ImGui::Text("Time %f", ui->time);
+            ImGui::End();
+        }
 
-    if(ui->esc) {
-        ImGui::Begin("Escape Menu", &ui->esc,
-            ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove);
-        ImGui::SetWindowFontScale(1.5f);
+        if(ui->esc) {
+            ImGui::Begin("Escape Menu", &ui->esc,
+                ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove);
+            ImGui::SetWindowFontScale(1.5f);
 
+            ImGui::SetWindowPos(ImVec2 { 0.0, 0.0 });
+            ImGui::SetWindowSize(ImVec2 { (float)prefs->width, (float)prefs->height });
+
+            if(ImGui::Button("Back to Game")) {
+                ui->esc = false;
+            }
+
+            if(ImGui::Button("Toggle Fullscreen")) {
+                prefs->fullscreen = !prefs->fullscreen;
+                changed = true;
+            }
+
+            ImGui::SliderFloat("Field of View", &prefs->graphics.fov, 20.0f, 120.0f);
+
+            if(ImGui::Button("Quit to Menu \n maybe ur game will be saved, idrc")) {
+                ui->main_menu = true;
+            }
+
+            ImGui::End();
+        }
+
+        ImGui::Begin("HUD", NULL,
+        ImGuiWindowFlags_NoDecoration |
+                ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoFocusOnAppearing|
+                ImGuiWindowFlags_NoInputs);
         ImGui::SetWindowPos(ImVec2 { 0.0, 0.0 });
         ImGui::SetWindowSize(ImVec2 { (float)prefs->width, (float)prefs->height });
 
-        if(ImGui::Button("Back to Game")) {
-            ui->esc = false;
+        ImGui::SetWindowFontScale(2.0f);
+
+        // Instructions
+        ImGui::Text("Use W A S D to move and SPACE to jump");
+        ImGui::Text("Use mouse to look, left click to break, and right click to place.");
+
+        ImGui::SetCursorPos(ImVec2(ImGui::GetWindowWidth()/2 - 8, ImGui::GetWindowHeight()/2 - 8));
+        ImGui::Image((void*)*ui->res.atlas, ImVec2(16.0, 16.0), ImVec2(0.0, .5f), ImVec2(1/ATLAS_COLS, 1.0));
+
+        ImGui::End();
+    }else {
+        ImGui::Begin("Main Menu", NULL,
+        ImGuiWindowFlags_NoDecoration);
+        ImGui::SetWindowPos(ImVec2 { 0.0, 0.0 });
+        ImGui::SetWindowSize(ImVec2 { (float)prefs->width, (float)prefs->height });
+
+        ImGui::SetWindowFontScale(1.5f);
+
+        if(ImGui::Button(CenterText("Create New World"))) {
+            ui->main_menu = false;
         }
 
-        if(ImGui::Button("Toggle Fullscreen")) {
-            prefs->fullscreen = !prefs->fullscreen;
-            changed = true;
-        }
-
-        ImGui::SliderFloat("Field of View", &prefs->graphics.fov, 20.0f, 120.0f);
-
-        if(ImGui::Button("Quit")) {
+        if(ImGui::Button(CenterText("Quit"))) {
             ui->quit = true;
         }
 
+        ImGui::SetCursorPos(ImVec2(ImGui::GetWindowWidth()/2 - 8, ImGui::GetWindowHeight()/2 - 8));
+        ImGui::Image((void*)*ui->res.atlas, ImVec2(16.0, 16.0), ImVec2(0.0, .5f), ImVec2(1/ATLAS_COLS, 1.0));
+
         ImGui::End();
     }
-
-    ImGui::Begin("HUD", NULL,
-    ImGuiWindowFlags_NoDecoration |
-            ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoFocusOnAppearing|
-            ImGuiWindowFlags_NoInputs);
-    ImGui::SetWindowPos(ImVec2 { 0.0, 0.0 });
-    ImGui::SetWindowSize(ImVec2 { (float)prefs->width, (float)prefs->height });
-
-    ImGui::SetWindowFontScale(2.0f);
-
-    // Instructions
-    ImGui::Text("Use W A S D to move and SPACE to jump");
-    ImGui::Text("Use mouse to look, left click to break, and right click to place.");
-
-    ImGui::SetCursorPos(ImVec2(ImGui::GetWindowWidth()/2 - 8, ImGui::GetWindowHeight()/2 - 8));
-    ImGui::Image((void*)*ui->res.atlas, ImVec2(16.0, 16.0), ImVec2(0.0, .5f), ImVec2(1/ATLAS_COLS, 1.0));
-
-    ImGui::End();
 
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());

@@ -4,9 +4,9 @@
 // Consts
 #define BLACK 0.0, 0.0, 0.0
 #define WHITE 1.0, 1.0, 1.0
-#define V3UP glm::vec3(0.0, 1.0, 0.0)
-#define V3RIGHT glm::vec3(1.0, 0.0, 0.0)
-#define V3FORWARD glm::vec3(0.0, 0.0, 1.0)
+#define V3UP glm::vec3(0.0f, 1.0f, 0.0f)
+#define V3RIGHT glm::vec3(1.0f, 0.0f, 0.0f)
+#define V3FORWARD glm::vec3(0.0f, 0.0f, 1.0f)
 
 // Vector helpers
 #define V3VECARRAY(type) std::vector<std::vector<std::vector<type>>>

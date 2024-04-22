@@ -1,6 +1,7 @@
 #pragma once
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_rwops.h>
+#include <sys/stat.h>
 
 char* file_read(const char* filename) {
 	SDL_RWops *rw = SDL_RWFromFile(filename, "rb");
@@ -24,6 +25,26 @@ char* file_read(const char* filename) {
 	
 	res[nb_read_total] = '\0';
 	return res;
+}
+
+void chk_mkdir(char* dir_path) {
+	if(!std::filesystem::exists(dir_path)) {
+		mkdir(dir_path, 0777);
+	}
+}
+
+void save_data(char* fname, void* src, size_t size) {
+	auto file = fopen(fname, "w");
+
+	fwrite(src, size, 1, file);
+	fclose(file);
+}
+
+void load_data(char* fname, void* dest, size_t size) {
+	auto file = fopen(fname, "r");
+
+	fread(dest, size, 1, file);
+	fclose(file);
 }
 
 SDL_Color hex2sdlcol(uint32_t color) {
