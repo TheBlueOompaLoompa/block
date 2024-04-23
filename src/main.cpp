@@ -51,8 +51,6 @@ vector<Entity> entities;
 
 UIData ui;
 
-TTF_Font* Sans;
-
 Preferences prefs;
 WorldSaveData world_save;
 
@@ -65,13 +63,6 @@ bool init_resources(SDL_Renderer* renderer) {
 			fprintf(stderr, "Couldn't initialize TTF: %s\n",SDL_GetError());
 			return false;
 		}
-
-	Sans = TTF_OpenFont("./res/fonts/NotoSans-Regular.ttf", 12);
-
-	if(Sans == NULL) {
-		fprintf(stderr, "Failed to load font: %s\n", SDL_GetError());
-		return false;
-	}
 
 	SDL_Surface* res_texture = IMG_Load("res/textures/atlas.png");
 	if (res_texture == NULL) {
