@@ -9,6 +9,7 @@
 #include "util.hpp"
 #pragma once
 
+// COPY: Function is from the same tutorial on loading shader files
 void print_log(GLuint object) {
 	GLint log_length = 0;
 	if (glIsShader(object)) {

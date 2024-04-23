@@ -3,6 +3,7 @@
 #include <SDL2/SDL_rwops.h>
 #include <sys/stat.h>
 
+// COPY: From a tutorial on how to load shader files
 char* file_read(const char* filename) {
 	SDL_RWops *rw = SDL_RWFromFile(filename, "rb");
 	if (rw == NULL) return NULL;

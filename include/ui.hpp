@@ -43,6 +43,7 @@ struct UIData {
     UIResources res;
 };
 
+// COPY: Function is example from library devs
 const char* CenterText(const char* text) {
     float alignment = 0.5f;
     ImGuiStyle& style = ImGui::GetStyle();

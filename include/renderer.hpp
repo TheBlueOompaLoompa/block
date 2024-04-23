@@ -7,6 +7,7 @@
 GLuint depth_fbo;
 GLuint depth_tex_id;
 
+// COPY: This is from a tutorial on how to generate shadows, but is unused.
 void generate_shadows() {
     glGenFramebuffers(1, &depth_fbo);
     glBindFramebuffer(GL_FRAMEBUFFER, depth_fbo);
