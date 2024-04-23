@@ -4,12 +4,14 @@
 
 #define RESCALE(x) (std::max(std::min(x, 1.0f), -1.0f) + 1.0f) / 2.0f
 
+int world_seed = 0;
+
 /*
  *  XZ are block coordinates. You must convert from local chunk space to world space.
  *  Returns a height value from `0.0` to `1.0`.
 */
 float height_at_pos(float x, float z) {
-    FastNoiseLite noise(0);
+    FastNoiseLite noise(world_seed);
 	noise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
 
     float mountain_height = RESCALE(noise.GetNoise(x, z)) / 2.0f;
@@ -28,7 +30,7 @@ float height_at_pos(float x, float z) {
 
 // Returns true if air
 BlockType cave_gen(float x, float y, float z) {
-    FastNoiseLite noise(0);
+    FastNoiseLite noise(world_seed);
     noise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
 
     float scale = 10.0f;

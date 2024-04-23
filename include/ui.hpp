@@ -11,6 +11,14 @@ struct UIResources {
     GLuint* atlas;
 };
 
+struct UIState {
+    int save_combo;
+    bool create_menu;
+    char new_save_name[50];
+    int new_world_seed;
+    std::filesystem::path save_folder;
+};
+
 struct UIData {
     bool f3 = false;
     bool esc = false;
@@ -25,6 +33,13 @@ struct UIData {
     
     double fps = 60.0;
     float time = 0.0f;
+
+    const char* save_folders;
+
+    void (*setup_func)();
+    void (*save_func)();
+
+    UIState state;
     UIResources res;
 };
 
@@ -39,6 +54,19 @@ const char* CenterText(const char* text) {
     if (off > 0.0f)
         ImGui::SetCursorPosX(ImGui::GetCursorPosX() + off);
     return text;
+}
+
+int fake_callback(ImGuiInputTextCallbackData* data) {
+    return 0;
+}
+
+void reset_ui(UIData* ui) {
+    ui->esc = false;
+    ui->f3 = false;
+    ui->state.create_menu = false;
+    ui->state.new_world_seed = rand();
+    ui->state.save_combo = 0;
+    ui->main_menu = true;
 }
 
 // Returns true if prefs changed
@@ -85,8 +113,9 @@ bool render_ui(UIData* ui, Preferences *prefs) {
 
             ImGui::SliderFloat("Field of View", &prefs->graphics.fov, 20.0f, 120.0f);
 
-            if(ImGui::Button("Quit to Menu \n maybe ur game will be saved, idrc")) {
-                ui->main_menu = true;
+            if(ImGui::Button("Quit to Menu and Save")) {
+                ui->save_func();
+                reset_ui(ui);
             }
 
             ImGui::End();
@@ -117,16 +146,57 @@ bool render_ui(UIData* ui, Preferences *prefs) {
 
         ImGui::SetWindowFontScale(1.5f);
 
-        if(ImGui::Button(CenterText("Create New World"))) {
-            ui->main_menu = false;
-        }
+        if(!ui->state.create_menu) {
+            if(ImGui::Button("Create New World")) {
+                ui->state.create_menu = true;
+            }
 
-        if(ImGui::Button(CenterText("Quit"))) {
-            ui->quit = true;
-        }
+            if(ImGui::Button("Load Save")) {
+                // Consume name
+                int item = 0;
+                int idx = 0;
+                while(item < ui->state.save_combo) {
+                    if(ui->save_folders[idx] == '\0') item++;
+                    idx++;
+                }
 
-        ImGui::SetCursorPos(ImVec2(ImGui::GetWindowWidth()/2 - 8, ImGui::GetWindowHeight()/2 - 8));
-        ImGui::Image((void*)*ui->res.atlas, ImVec2(16.0, 16.0), ImVec2(0.0, .5f), ImVec2(1/ATLAS_COLS, 1.0));
+                std::string path = "";
+                while(ui->save_folders[idx] != '\0') {
+                    path.push_back(ui->save_folders[idx]);
+                    idx++;
+                }
+                ui->state.save_folder = path;
+
+                assert(ui->setup_func != nullptr);
+                ui->setup_func();
+                ui->main_menu = false;
+            }
+            ImGui::SameLine();
+            if(ImGui::Combo("##saveselect", &ui->state.save_combo, ui->save_folders)) {
+                printf("Selected world %i\n", ui->state.save_combo);
+            }
+
+            if(ImGui::Button("Quit")) {
+                ui->quit = true;
+            }
+        }else {
+            if(ImGui::Button("Back")) {
+                ui->state.create_menu = false;
+            }
+
+            ImGui::InputText("Name", ui->state.new_save_name, sizeof(ui->state.new_save_name), ImGuiInputTextFlags_CallbackEdit, fake_callback);
+            ImGui::InputInt("Seed", &ui->state.new_world_seed);
+
+            if(ImGui::Button("Create")) {
+                ui->state.save_folder = "worlds/";
+                ui->state.save_folder.concat(ui->state.new_save_name);
+                printf("%s\n", ui->state.save_folder);
+
+                assert(ui->setup_func != nullptr);
+                ui->setup_func();
+                ui->main_menu = false;
+            }
+        }
 
         ImGui::End();
     }

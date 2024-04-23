@@ -35,6 +35,7 @@ LOOK with your mouse
 #include "worldgen.hpp"
 #include "preferences.hpp"
 #include "physics.hpp"
+#include "save.hpp"
 
 using namespace std;
 
@@ -53,6 +54,11 @@ UIData ui;
 TTF_Font* Sans;
 
 Preferences prefs;
+WorldSaveData world_save;
+
+glm::vec3 offset = glm::vec3(0.0f);
+glm::vec3 vel;
+glm::vec2 look_dir;
 
 bool init_resources(SDL_Renderer* renderer) {
 	if (TTF_Init() < 0) {
@@ -65,65 +71,6 @@ bool init_resources(SDL_Renderer* renderer) {
 	if(Sans == NULL) {
 		fprintf(stderr, "Failed to load font: %s\n", SDL_GetError());
 		return false;
-	}
-
-	chunks = vector<vector<vector<Chunk>>>(LOAD_DISTANCE);
-	for(int cx = 0; cx < LOAD_DISTANCE; cx++) {
-		chunks[cx] = vector<vector<Chunk>>(WORLD_HEIGHT);
-		for(int cy = 0; cy < WORLD_HEIGHT; cy++) {
-			chunks[cx][cy] = vector<Chunk>(LOAD_DISTANCE);
-			for(int cz = 0; cz < LOAD_DISTANCE; cz++) {
-				chunks[cx][cy][cz].x = cx;
-				chunks[cx][cy][cz].y = cy;
-				chunks[cx][cy][cz].z = cz;
-
-				chunks[cx][cy][cz].load();
-
-				#define HEIGHT_OFFSET(x, offset) x + (offset)/(float)(CHUNK_SIZE * WORLD_HEIGHT)
-				#define MAKE_WORLD(cx, bx) cx * CHUNK_SIZE + bx
-
-				if(!chunks[cx][cy][cz].changed) {
-					for(int bx = 0; bx < CHUNK_SIZE; bx++) {
-						for(int bz = 0; bz < CHUNK_SIZE; bz++) {
-							float height = height_at_pos(MAKE_WORLD(cx, bx), MAKE_WORLD(cz, bz));
-							for(int by = 0; by < CHUNK_SIZE; by++) {
-								float relative_y = (float)(cy * CHUNK_SIZE + by) / (float)(CHUNK_SIZE * WORLD_HEIGHT);
-								BlockType new_type = BlockType::AIR;
-
-								if(HEIGHT_OFFSET(height, -10.0) > relative_y) {
-									new_type = cave_gen(MAKE_WORLD(cx, bx), MAKE_WORLD(cy, by), MAKE_WORLD(cz, bz));
-								}else if(HEIGHT_OFFSET(height, -3.0) > relative_y) {
-									new_type = BlockType::STONE;
-								}else if(height > relative_y) {
-									new_type = BlockType::DIRT;
-								} else if(HEIGHT_OFFSET(height, 1.0f) > relative_y) {
-									new_type = BlockType::GRASS;
-								}
-
-								chunks[cx][cy][cz].blocks[bx][by][bz].type = new_type;
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-
-	for(int x = 0; x < LOAD_DISTANCE; x++) {
-		for(int y = 0; y < WORLD_HEIGHT; y++) {
-			for(int z = 0; z < LOAD_DISTANCE; z++) {
-				if(x > 0) { chunks[x][y][z].adjacent_chunks[3] = &chunks[x - 1][y][z]; }
-				if(x + 1 < LOAD_DISTANCE) { chunks[x][y][z].adjacent_chunks[2] = &chunks[x + 1][y][z]; }
-				
-				if(y > 0) { chunks[x][y][z].adjacent_chunks[1] = &chunks[x][y - 1][z]; }
-				if(y + 1 < WORLD_HEIGHT) chunks[x][y][z].adjacent_chunks[0] = &chunks[x][y + 1][z];
-
-				if(z > 0) { chunks[x][y][z].adjacent_chunks[5] = &chunks[x][y][z - 1]; }
-				if(z + 1 < LOAD_DISTANCE) chunks[x][y][z].adjacent_chunks[4] = &chunks[x][y][z + 1];
-				
-				chunks[x][y][z].update_mesh();
-			}
-		}
 	}
 
 	SDL_Surface* res_texture = IMG_Load("res/textures/atlas.png");
@@ -181,24 +128,127 @@ void apply_prefs(SDL_Window* window) {
 }
 
 void setup() {
+	world_save = {
+		.player_pos = glm::vec3(LOAD_DISTANCE*CHUNK_SIZE/2.0f, WORLD_HEIGHT*CHUNK_SIZE, LOAD_DISTANCE*CHUNK_SIZE/2.0f),
+		.look_dir = look_dir,
+		.seed = world_seed
+	};
+
+	if(ui.state.create_menu) {
+		world_seed = ui.state.new_world_seed;
+		chk_mkdir((char*)ui.state.save_folder.c_str());
+	}else {
+		filesystem::path path = ui.state.save_folder;
+		path.concat("/world.bin");
+		if(std::filesystem::exists(path)) {
+			load_data((char*)path.c_str(), &world_save, sizeof(WorldSaveData));	
+		}
+
+		world_seed = world_save.seed;
+	}
+
+	// MARK: Chunk gen
+	chunks = vector<vector<vector<Chunk>>>(LOAD_DISTANCE);
+	for(int cx = 0; cx < LOAD_DISTANCE; cx++) {
+		chunks[cx] = vector<vector<Chunk>>(WORLD_HEIGHT);
+		for(int cy = 0; cy < WORLD_HEIGHT; cy++) {
+			chunks[cx][cy] = vector<Chunk>(LOAD_DISTANCE);
+			for(int cz = 0; cz < LOAD_DISTANCE; cz++) {
+				chunks[cx][cy][cz].x = cx;
+				chunks[cx][cy][cz].y = cy;
+				chunks[cx][cy][cz].z = cz;
+
+				chunks[cx][cy][cz].load(ui.state.save_folder.c_str());
+
+				#define HEIGHT_OFFSET(x, offset) x + (offset)/(float)(CHUNK_SIZE * WORLD_HEIGHT)
+				#define MAKE_WORLD(cx, bx) cx * CHUNK_SIZE + bx
+
+				if(!chunks[cx][cy][cz].changed) {
+					for(int bx = 0; bx < CHUNK_SIZE; bx++) {
+						for(int bz = 0; bz < CHUNK_SIZE; bz++) {
+							float height = height_at_pos(MAKE_WORLD(cx, bx), MAKE_WORLD(cz, bz));
+							for(int by = 0; by < CHUNK_SIZE; by++) {
+								float relative_y = (float)(cy * CHUNK_SIZE + by) / (float)(CHUNK_SIZE * WORLD_HEIGHT);
+								BlockType new_type = BlockType::AIR;
+
+								if(HEIGHT_OFFSET(height, -10.0) > relative_y) {
+									new_type = cave_gen(MAKE_WORLD(cx, bx), MAKE_WORLD(cy, by), MAKE_WORLD(cz, bz));
+								}else if(HEIGHT_OFFSET(height, -3.0) > relative_y) {
+									new_type = BlockType::STONE;
+								}else if(height > relative_y) {
+									new_type = BlockType::DIRT;
+								} else if(HEIGHT_OFFSET(height, 1.0f) > relative_y) {
+									new_type = BlockType::GRASS;
+								}
+
+								chunks[cx][cy][cz].blocks[bx][by][bz].type = new_type;
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	for(int x = 0; x < LOAD_DISTANCE; x++) {
+		for(int y = 0; y < WORLD_HEIGHT; y++) {
+			for(int z = 0; z < LOAD_DISTANCE; z++) {
+				if(x > 0) { chunks[x][y][z].adjacent_chunks[3] = &chunks[x - 1][y][z]; }
+				if(x + 1 < LOAD_DISTANCE) { chunks[x][y][z].adjacent_chunks[2] = &chunks[x + 1][y][z]; }
+				
+				if(y > 0) { chunks[x][y][z].adjacent_chunks[1] = &chunks[x][y - 1][z]; }
+				if(y + 1 < WORLD_HEIGHT) chunks[x][y][z].adjacent_chunks[0] = &chunks[x][y + 1][z];
+
+				if(z > 0) { chunks[x][y][z].adjacent_chunks[5] = &chunks[x][y][z - 1]; }
+				if(z + 1 < LOAD_DISTANCE) chunks[x][y][z].adjacent_chunks[4] = &chunks[x][y][z + 1];
+				
+				chunks[x][y][z].update_mesh();
+			}
+		}
+	}
+
+	entities.clear();
 	entities.push_back({
 		type: EntityType::Player,
 		name: (char*)"Player",
-		position: glm::vec3(LOAD_DISTANCE*CHUNK_SIZE/2 + .5f, (CHUNK_SIZE - 1.0f)*WORLD_HEIGHT, LOAD_DISTANCE*CHUNK_SIZE/2 + .5f),
+		position: world_save.player_pos,
 	});
 
-	glm::vec3 hit_pos;
+	if(ui.state.create_menu) {
+		glm::vec3 hit_pos;
 
-	bool hit_ground = raycast(&chunks, &entities[0].position, V3UP, &hit_pos, 16.0f*(float)WORLD_HEIGHT, .001f);
+		bool hit_ground = raycast(&chunks, &entities[0].position, V3UP, &hit_pos, 16.0f*(float)WORLD_HEIGHT, .001f);
 
-	if(hit_ground) {
-		entities[entities.size() - 1].position = hit_pos;
+		if(hit_ground) {
+			entities[entities.size() - 1].position = hit_pos;
+		}
 	}
 }
 
-glm::vec3 offset = glm::vec3(0.0f);
-glm::vec3 vel;
-glm::vec2 look_dir;
+void save() {
+	char* save_bin_path = (char*)malloc(100);
+
+	sprintf(save_bin_path, "%s/world.bin", ui.state.save_folder.c_str());
+
+	world_save = {
+		.player_pos = entities[0].position,
+		.look_dir = look_dir,
+		.seed = world_seed
+	};
+
+	save_data(save_bin_path, &world_save, sizeof(WorldSaveData));
+	free(save_bin_path);
+
+	for(int x = 0; x < LOAD_DISTANCE; x++) {
+		for(int y = 0; y < WORLD_HEIGHT; y++) {
+			for(int z = 0; z < WORLD_HEIGHT; z++) {
+				if(chunks[x][y][z].changed) chunks[x][y][z].save((char*)ui.state.save_folder.c_str());
+			}
+		}
+	}
+
+	prefs.save();
+}
 
 glm::mat4 camera_transform = glm::mat4(1.0f);
 
@@ -244,7 +294,7 @@ void player_logic(Entity* player, float dt) {
 
 	//raycast(&chunks, &check_pos, orientation, &ui.hit_pos);
 
-	if(m_click) {
+	if(m_click) { // MARK: Block place/break
 		glm::vec3 hit_pos;
 
 		if(raycast(&chunks, &check_pos, orientation, &hit_pos, 5.0f)) {
@@ -363,6 +413,8 @@ void logic() {
 	glUniform1f(uniform_time, gt);
 }
 
+// MARK: Rendering
+
 void render_chunks(SDL_Renderer* renderer, SDL_Window* window) {
 	glUseProgram(program);
 
@@ -414,8 +466,6 @@ void render_chunks(SDL_Renderer* renderer, SDL_Window* window) {
 			}
 		}
 	}
-
-	
 }
 
 void render(SDL_Renderer* renderer, SDL_Window* window) {
@@ -450,6 +500,7 @@ void free_resources() {
     ImGui_ImplSDL2_Shutdown();
 }
 
+// MARK: Input
 void check_input(SDL_Scancode code, bool val) {
 	if(code == prefs.input.forward) {
 		m_up = val;
@@ -529,16 +580,11 @@ void mainLoop(SDL_Renderer* renderer, SDL_Window* window, ImGuiIO& io) {
 
 		if(ui.quit) { return; }
 
-		logic();
+		if(!ui.main_menu) logic();
 		
 		render(renderer, window);
 	}
 }
-
-struct WorldSaveData {
-	glm::vec3 player_pos;
-	glm::vec2 look_dir;
-};
 
 int main(int argc, char* argv[]) {
 	printf("Start Block\n");
@@ -619,42 +665,21 @@ int main(int argc, char* argv[]) {
 
 	apply_prefs(window);
 
-	/* We can display something if everything goes OK */
-	setup();
-
-	WorldSaveData data = {
-		.player_pos = entities[0].position,
-		.look_dir = look_dir
-	};
-
 	chk_mkdir("worlds");
-	chk_mkdir("worlds/hello");
 
-	if(std::filesystem::exists("worlds/hello/world.bin")) {
-		load_data("worlds/hello/world.bin", &data, sizeof(WorldSaveData));	
+	std::string world_list;
+
+	for(const auto& dir : filesystem::directory_iterator("worlds")) {
+		world_list.append(dir.path());
+		world_list.push_back('\0');
 	}
 
-	entities[0].position = data.player_pos;
-	look_dir = data.look_dir;
+	ui.save_folders = world_list.c_str();
+	ui.setup_func = setup;
+	ui.save_func = save;
+	reset_ui(&ui);
 
 	mainLoop(renderer, window, io);
-
-	data = {
-		.player_pos = entities[0].position,
-		.look_dir = look_dir
-	};
-
-	save_data("worlds/hello/world.bin", &data, sizeof(WorldSaveData));
-
-	prefs.save();
-
-	for(int x = 0; x < LOAD_DISTANCE; x++) {
-		for(int y = 0; y < WORLD_HEIGHT; y++) {
-			for(int z = 0; z < WORLD_HEIGHT; z++) {
-				if(chunks[x][y][z].changed) chunks[x][y][z].save();
-			}
-		}
-	}
 
 	/* If the program exits in the usual way,
 	   free resources and exit with a success */

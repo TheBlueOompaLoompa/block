@@ -188,11 +188,12 @@ struct Chunk {
         }
     }
 
-    void save() {
-        chk_mkdir("chunks");
-
+    void save(const char* root) {
         char* fname = (char*)malloc(100);
-        sprintf(fname, "chunks/%i %i %i.chunk", x, y, z);
+
+        sprintf(fname, "%s/chunks", root);
+        chk_mkdir(fname);
+        sprintf(fname, "%s/chunks/%i %i %i.chunk", root, x, y, z);
 
         ChunkSaveData data;
         memcpy(&data.blocks, &blocks, sizeof(data.blocks));
@@ -201,9 +202,9 @@ struct Chunk {
         free(fname);
     }
 
-    void load() {
+    void load(const char* root) {
         char* fname = (char*)malloc(100);
-        sprintf(fname, "chunks/%i %i %i.chunk", x, y, z);
+        sprintf(fname, "%s/chunks/%i %i %i.chunk", root, x, y, z);
 
         if(!std::filesystem::exists(fname)) {
             free(fname);
