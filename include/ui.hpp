@@ -64,6 +64,7 @@ void reset_ui(UIData* ui) {
     ui->esc = false;
     ui->f3 = false;
     ui->state.create_menu = false;
+    srand(time(NULL));
     ui->state.new_world_seed = rand();
     ui->state.save_combo = 0;
     ui->main_menu = true;
