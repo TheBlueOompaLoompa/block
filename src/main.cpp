@@ -216,6 +216,7 @@ void setup() {
 	}
 }
 
+// MARK: Save
 void save() {
 	char* save_bin_path = (char*)malloc(100);
 
