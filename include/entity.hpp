@@ -2,8 +2,6 @@
 #include <glm/glm.hpp>
 #include <vector>
 
-#include "components/component.hpp"
-
 enum EntityType {
     Player
 };
@@ -11,8 +9,6 @@ enum EntityType {
 struct Entity {
     EntityType type;
     const char* name;
-
-    std::vector<EntityComponent> components;
 
     glm::vec3 position = glm::vec3(0, 0, 0);
     glm::vec3 velocity = glm::vec3(0, 0, 0);
