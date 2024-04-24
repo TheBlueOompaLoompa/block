@@ -11,13 +11,12 @@ copying others verbatim, but it's not impossible for similarities.
 
 Any code that was directly copied and pasted will be labeled with a comment that starts with `// COPY:`
 
+You must have [Nix](https://nixos.org/) installed to run this.
+
 To run:
 
 ```bash
-nix-shell
-make
-chmod +x block
-./block
+./run.sh
 ```
 
 ## Todolist
