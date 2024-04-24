@@ -9,7 +9,7 @@ Also, people have attempted this same type of project before,
 so there may be accidental crossover. My code shouldn't be
 copying others verbatim, but it's not impossible for similarities.
 
-Any code that was directly copied and pasted will be labeled with a comment that starts with `// COPY:`
+Any block of code that was directly copied and pasted will be labeled with a comment that starts with `// COPY:`
 
 You must have [Nix](https://nixos.org/) installed to run this.
 
