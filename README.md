@@ -19,9 +19,4 @@ To run:
 ./run.sh
 ```
 
-## Todolist
-
-- [ ] Texture atlas
-  - [ ] Side Atlas
-
 [Tutorial used to learn OpenGL](https://en.wikibooks.org/wiki/OpenGL_Programming)
