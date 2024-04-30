@@ -19,4 +19,6 @@ To run:
 ./run.sh
 ```
 
+TODO: Use std::vector::swap to move chunks around when changing their position. Stop using 
+
 [Tutorial used to learn OpenGL](https://en.wikibooks.org/wiki/OpenGL_Programming)

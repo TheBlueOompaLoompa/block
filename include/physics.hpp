@@ -9,12 +9,12 @@
 #include "block.hpp"
 #include "config.hpp"
 
-bool safe_air_check(V3VECARRAY(Chunk)* chunks_ref, glm::vec3 ray_pos) {
+bool safe_air_check(V3VECARRAY(Chunk*)* chunks_ref, glm::vec3 ray_pos) {
     int cx = (int)floor(ray_pos.x/16.0f);
     int cy = (int)floor(ray_pos.y/16.0f);
     int cz = (int)floor(ray_pos.z/16.0f);
 
-    V3VECARRAY(Chunk)& chunks = *chunks_ref;
+    V3VECARRAY(Chunk*)& chunks = *chunks_ref;
 
     if(
         !(cx >= 0 && cy >= 0 && cz >= 0 &&
@@ -28,11 +28,12 @@ bool safe_air_check(V3VECARRAY(Chunk)* chunks_ref, glm::vec3 ray_pos) {
 	int bz = ((int)floor(ray_pos.z))%16;
 
     return chunks[cx][cy][cz]
-            .blocks[bx][by][bz].type == BlockType::AIR;
+            ->blocks[bx][by][bz].type == BlockType::AIR;
 }
 
 // Returns true when hit
-bool raycast(V3VECARRAY(Chunk)* chunks_ref, glm::vec3* start_pos, glm::quat rot, glm::vec3* hit_pos = nullptr, /*glm::vec3* hit_block = nullptr,*/ float max_dist = 6.0f, float step = .05) {
+bool raycast(V3VECARRAY(Chunk*)* chunks_ref, glm::vec3* start_pos, glm::quat rot,
+			glm::vec3* hit_pos = nullptr, float max_dist = 6.0f, float step = .05) {
     glm::vec3 ray_pos = (*start_pos);
     
     while(
@@ -49,7 +50,10 @@ bool raycast(V3VECARRAY(Chunk)* chunks_ref, glm::vec3* start_pos, glm::quat rot,
     return hit;
 }
 
-bool raycast(V3VECARRAY(Chunk)* chunks_ref, glm::vec3* start_pos, glm::vec3 dir, glm::vec3* hit_pos = nullptr, float max_dist = 6.0f, float step = .05) {
+// Returns true when hit
+bool raycast(V3VECARRAY(Chunk*)* chunks_ref, glm::vec3* start_pos, glm::vec3 dir,
+			glm::vec3* hit_pos = nullptr,float max_dist = 6.0f, float step = .05) {
+
     glm::vec3 ray_pos = (*start_pos);
     
     while(
@@ -66,7 +70,7 @@ bool raycast(V3VECARRAY(Chunk)* chunks_ref, glm::vec3* start_pos, glm::vec3 dir,
     return hit;
 }
 
-void process_entity_physics(Entity& entity, V3VECARRAY(Chunk)* chunks, float dt) {
+void process_entity_physics(Entity& entity, V3VECARRAY(Chunk*)* chunks, float dt) {
 	entity.is_grounded = false;
 	
 	#define radius .18f
@@ -74,7 +78,9 @@ void process_entity_physics(Entity& entity, V3VECARRAY(Chunk)* chunks, float dt)
 		(radius-.1f)
 	for(int x = 0; x < 2; x++) {
 		for(int y = 0; y < 2; y++) {
-			glm::vec3 ray_start = entity.position + glm::vec3((float)x*(ground_radius*2.0f) - ground_radius, 0.0f, (float)y*(ground_radius*2.0f) - ground_radius);
+			glm::vec3 ray_start = entity.position +
+				glm::vec3((float)x*(ground_radius*2.0f) - ground_radius, 0.0f, (float)y*(ground_radius*2.0f) - ground_radius);
+
 			if(raycast(chunks, &ray_start, glm::quat(glm::vec3(-M_PIf, 0.0f, 0.0f)), nullptr, .01f, .001f)) {
 				entity.is_grounded = true;
 			}
@@ -103,10 +109,12 @@ void process_entity_physics(Entity& entity, V3VECARRAY(Chunk)* chunks, float dt)
 		if(hit_pos_z) entity.velocity.z = std::max(entity.velocity.z, 0.0f);
 		if(hit_neg_x) entity.velocity.x = std::max(entity.velocity.x, 0.0f);
 		if(hit_neg_z) entity.velocity.z = std::min(entity.velocity.z, 0.0f);
-
+		
 		// TODO: Implement better algorithm along with new raycasting system in order to eject entities inside blocks
 		// Eject player from ground or ceiling
-		if(hit_pos_x + hit_pos_z + hit_neg_x + hit_pos_z > 3) entity.position.y = i > 0 ? std::floor(entity.position.y) : std::ceil(entity.position.y);
+		if(hit_pos_x + hit_pos_z + hit_neg_x + hit_pos_z > 3) {
+			entity.position.y = i > 0 ? std::floor(entity.position.y) : std::ceil(entity.position.y);
+		}
 
 		check_pos.y += i == PLAYER_HEIGHT - 2.0f ? 1.5f : 1.0f;
 	}

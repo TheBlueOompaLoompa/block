@@ -16,9 +16,7 @@ struct ChunkSaveData {
 };
 
 struct Chunk {
-    int x = 0;
-    int y = 0;
-    int z = 0;
+    glm::ivec3 position;
 
     Block blocks[CHUNK_SIZE][CHUNK_SIZE][CHUNK_SIZE]; // XYZ
 
@@ -40,14 +38,14 @@ struct Chunk {
 
     }
 
-    void update_area(V3VECARRAY(Chunk)& chunks) {
+    void update_area(V3VECARRAY(Chunk*)& chunks) {
         update_mesh();
-        if(x > 0) chunks[x - 1][y][z].update_mesh();
-        if(y > 0) chunks[x][y - 1][z].update_mesh();
-        if(z > 0) chunks[x][y][z - 1].update_mesh();
-        if(x < LOAD_DISTANCE - 1) chunks[x + 1][y][z].update_mesh();
-        if(y < WORLD_HEIGHT - 1) chunks[x][y + 1][z].update_mesh();
-        if(z < LOAD_DISTANCE - 1) chunks[x][y][z + 1].update_mesh();
+        if(position.x > 0) chunks[position.x - 1][position.y][position.z]->update_mesh();
+        if(position.y > 0) chunks[position.x][position.y - 1][position.z]->update_mesh();
+        if(position.z > 0) chunks[position.x][position.y][position.z - 1]->update_mesh();
+        if(position.x < LOAD_DISTANCE - 1)   chunks[position.x + 1][position.y][position.z]->update_mesh();
+        if(position.y < WORLD_HEIGHT - 1)    chunks[position.x][position.y + 1][position.z]->update_mesh();
+        if(position.z < LOAD_DISTANCE - 1)   chunks[position.x][position.y][position.z + 1]->update_mesh();
     }
 
     void update_mesh() {
@@ -72,7 +70,7 @@ struct Chunk {
         }
 
         for(uint i = 0; i < vertices.size(); i++) {
-            vertices[i].pos += glm::vec3(x, y, z) * glm::vec3(CHUNK_SIZE);
+            vertices[i].pos += glm::vec3(position.x, position.y, position.z) * glm::vec3(CHUNK_SIZE);
         }
 
         glDeleteBuffers(1, &vbo_vertices);
@@ -193,7 +191,7 @@ struct Chunk {
 
         sprintf(fname, "%s/chunks", root);
         chk_mkdir(fname);
-        sprintf(fname, "%s/chunks/%i %i %i.chunk", root, x, y, z);
+        sprintf(fname, "%s/chunks/%i %i %i.chunk", root, position.x, position.y, position.z);
 
         ChunkSaveData data;
         memcpy(&data.blocks, &blocks, sizeof(data.blocks));
@@ -204,7 +202,7 @@ struct Chunk {
 
     void load(const char* root) {
         char* fname = (char*)malloc(100);
-        sprintf(fname, "%s/chunks/%i %i %i.chunk", root, x, y, z);
+        sprintf(fname, "%s/chunks/%i %i %i.chunk", root, position.x, position.y, position.z);
 
         if(!std::filesystem::exists(fname)) {
             free(fname);
@@ -224,5 +222,8 @@ struct Chunk {
         glDeleteBuffers(1, &vbo_vertices);
         glDeleteBuffers(1, &nbo_normals);
         glDeleteBuffers(1, &ibo_elements);
+        vertices.clear();
+        normals.clear();
+        indices.clear();
     }
 };

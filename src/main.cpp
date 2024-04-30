@@ -46,7 +46,7 @@ GLuint attribute_coord3d, attribute_texcoord, attribute_normal;
 GLint uniform_mvp;
 GLint uniform_time;
 
-vector<vector<vector<Chunk>>> chunks;
+vector<vector<vector<Chunk*>>> chunks;
 vector<Entity> entities;
 
 UIData ui;
@@ -139,22 +139,33 @@ void setup() {
 	}
 
 	// MARK: Chunk gen
-	chunks = vector<vector<vector<Chunk>>>(LOAD_DISTANCE);
-	for(int cx = 0; cx < LOAD_DISTANCE; cx++) {
-		chunks[cx] = vector<vector<Chunk>>(WORLD_HEIGHT);
-		for(int cy = 0; cy < WORLD_HEIGHT; cy++) {
-			chunks[cx][cy] = vector<Chunk>(LOAD_DISTANCE);
-			for(int cz = 0; cz < LOAD_DISTANCE; cz++) {
-				chunks[cx][cy][cz].x = cx;
-				chunks[cx][cy][cz].y = cy;
-				chunks[cx][cy][cz].z = cz;
+	
+	for(int cx = 0; cx < chunks.size(); cx++) {
+		for(int cy = 0; cy < chunks[cx].size(); cy++) {
+			for(int cz = 0; cz < chunks[cx][cy].size(); cz++) {
+				if(chunks[cx][cy][cz] != nullptr) {
+					chunks[cx][cy][cz]->destroy();
+					delete chunks[cx][cy][cz];
+				}
+			}
+		}
+	}
 
-				chunks[cx][cy][cz].load(ui.state.save_folder.c_str());
+	chunks = V3VECARRAY(Chunk*)(LOAD_DISTANCE);
+	for(int cx = 0; cx < LOAD_DISTANCE; cx++) {
+		chunks[cx] = vector<vector<Chunk*>>(WORLD_HEIGHT);
+		for(int cy = 0; cy < WORLD_HEIGHT; cy++) {
+			chunks[cx][cy] = vector<Chunk*>(LOAD_DISTANCE);
+			for(int cz = 0; cz < LOAD_DISTANCE; cz++) {
+				chunks[cx][cy][cz] = new Chunk();
+				chunks[cx][cy][cz]->position = glm::ivec3(cx, cy, cz);
+
+				chunks[cx][cy][cz]->load(ui.state.save_folder.c_str());
 
 				#define HEIGHT_OFFSET(x, offset) x + (offset)/(float)(CHUNK_SIZE * WORLD_HEIGHT)
 				#define MAKE_WORLD(cx, bx) cx * CHUNK_SIZE + bx
 
-				if(!chunks[cx][cy][cz].changed) {
+				if(!chunks[cx][cy][cz]->changed) {
 					for(int bx = 0; bx < CHUNK_SIZE; bx++) {
 						for(int bz = 0; bz < CHUNK_SIZE; bz++) {
 							float height = height_at_pos(MAKE_WORLD(cx, bx), MAKE_WORLD(cz, bz));
@@ -172,7 +183,7 @@ void setup() {
 									new_type = BlockType::GRASS;
 								}
 
-								chunks[cx][cy][cz].blocks[bx][by][bz].type = new_type;
+								chunks[cx][cy][cz]->blocks[bx][by][bz].type = new_type;
 							}
 						}
 					}
@@ -184,16 +195,16 @@ void setup() {
 	for(int x = 0; x < LOAD_DISTANCE; x++) {
 		for(int y = 0; y < WORLD_HEIGHT; y++) {
 			for(int z = 0; z < LOAD_DISTANCE; z++) {
-				if(x > 0) { chunks[x][y][z].adjacent_chunks[3] = &chunks[x - 1][y][z]; }
-				if(x + 1 < LOAD_DISTANCE) { chunks[x][y][z].adjacent_chunks[2] = &chunks[x + 1][y][z]; }
+				if(x > 0) { chunks[x][y][z]->adjacent_chunks[3] = chunks[x - 1][y][z]; }
+				if(x + 1 < LOAD_DISTANCE) { chunks[x][y][z]->adjacent_chunks[2] = chunks[x + 1][y][z]; }
 				
-				if(y > 0) { chunks[x][y][z].adjacent_chunks[1] = &chunks[x][y - 1][z]; }
-				if(y + 1 < WORLD_HEIGHT) chunks[x][y][z].adjacent_chunks[0] = &chunks[x][y + 1][z];
+				if(y > 0) { chunks[x][y][z]->adjacent_chunks[1] = chunks[x][y - 1][z]; }
+				if(y + 1 < WORLD_HEIGHT) chunks[x][y][z]->adjacent_chunks[0] = chunks[x][y + 1][z];
 
-				if(z > 0) { chunks[x][y][z].adjacent_chunks[5] = &chunks[x][y][z - 1]; }
-				if(z + 1 < LOAD_DISTANCE) chunks[x][y][z].adjacent_chunks[4] = &chunks[x][y][z + 1];
+				if(z > 0) { chunks[x][y][z]->adjacent_chunks[5] = chunks[x][y][z - 1]; }
+				if(z + 1 < LOAD_DISTANCE) chunks[x][y][z]->adjacent_chunks[4] = chunks[x][y][z + 1];
 				
-				chunks[x][y][z].update_mesh();
+				chunks[x][y][z]->update_mesh();
 			}
 		}
 	}
@@ -234,7 +245,7 @@ void save() {
 	for(int x = 0; x < LOAD_DISTANCE; x++) {
 		for(int y = 0; y < WORLD_HEIGHT; y++) {
 			for(int z = 0; z < WORLD_HEIGHT; z++) {
-				if(chunks[x][y][z].changed) chunks[x][y][z].save((char*)ui.state.save_folder.c_str());
+				if(chunks[x][y][z]->changed) chunks[x][y][z]->save((char*)ui.state.save_folder.c_str());
 			}
 		}
 	}
@@ -302,7 +313,7 @@ void player_logic(Entity* player, float dt) {
 
 			if(m_click_lr) {
 				chunks[cx][cy][cz]
-					.blocks[bx][by][bz].type = BlockType::AIR;
+					->blocks[bx][by][bz].type = BlockType::AIR;
 			}else {
 				glm::vec3 block_hit = glm::vec3(fmodf(hit_pos.x, CHUNK_SIZE), fmodf(hit_pos.y, CHUNK_SIZE), fmodf(hit_pos.z, CHUNK_SIZE));
 
@@ -332,12 +343,12 @@ void player_logic(Entity* player, float dt) {
 				nbz = (nbz < 0 ? CHUNK_SIZE - 1 : nbz) % CHUNK_SIZE;
 				
 				chunks[cx][cy][cz]
-					.blocks[nbx][nby][nbz].type = block_place_type;
+					->blocks[nbx][nby][nbz].type = block_place_type;
 			}
 
-			chunks[cx][cy][cz].changed = true;
+			chunks[cx][cy][cz]->changed = true;
 			
-			chunks[floor(hit_pos.x/CHUNK_SIZE)][floor(hit_pos.y/CHUNK_SIZE)][floor(hit_pos.z/CHUNK_SIZE)].update_area(chunks);
+			chunks[floor(hit_pos.x/CHUNK_SIZE)][floor(hit_pos.y/CHUNK_SIZE)][floor(hit_pos.z/CHUNK_SIZE)]->update_area(chunks);
 		}
 		ui.hit_pos = hit_pos;
 
@@ -358,7 +369,6 @@ void logic() {
 	gt = SDL_GetTicks() / 1000.0f / DAY_NIGHT_TIME / 60.0f + .5f;
 
 	ui.fps = 1000.0 / (dt * 1000.0);
-	//ui.fps /= 2.0f;
 
 	for(Entity& entity : entities) {
 		if(!entity.is_owned) continue;
@@ -414,7 +424,7 @@ void render_chunks(SDL_Renderer* renderer, SDL_Window* window) {
 		for(int y = 0; y < WORLD_HEIGHT; y++) {
 			for(int z = 0; z < LOAD_DISTANCE; z++) {
 				glEnableVertexAttribArray(attribute_coord3d);
-				glBindBuffer(GL_ARRAY_BUFFER, chunks[x][y][z].vbo_vertices);
+				glBindBuffer(GL_ARRAY_BUFFER, chunks[x][y][z]->vbo_vertices);
 				glVertexAttribPointer(
 					attribute_coord3d,
 					3,
@@ -425,7 +435,7 @@ void render_chunks(SDL_Renderer* renderer, SDL_Window* window) {
 				);
 
 				glEnableVertexAttribArray(attribute_texcoord);
-				glBindBuffer(GL_ARRAY_BUFFER, chunks[x][y][z].vbo_vertices);
+				glBindBuffer(GL_ARRAY_BUFFER, chunks[x][y][z]->vbo_vertices);
 				glVertexAttribPointer(
 					attribute_texcoord, // attribute
 					2,                  // number of elements per vertex, here (x,y)
@@ -436,7 +446,7 @@ void render_chunks(SDL_Renderer* renderer, SDL_Window* window) {
 				);
 
 				glEnableVertexAttribArray(attribute_normal);
-				glBindBuffer(GL_ARRAY_BUFFER, chunks[x][y][z].nbo_normals);
+				glBindBuffer(GL_ARRAY_BUFFER, chunks[x][y][z]->nbo_normals);
 				glVertexAttribPointer(
 					attribute_normal,
 					3,
@@ -452,7 +462,7 @@ void render_chunks(SDL_Renderer* renderer, SDL_Window* window) {
 				glBindTexture(GL_TEXTURE_2D, texture_atlas_id);
 				
 				/* Push each element in buffer_vertices to the vertex shader */
-				glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, chunks[x][y][z].ibo_elements);
+				glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, chunks[x][y][z]->ibo_elements);
 				int size;  glGetBufferParameteriv(GL_ELEMENT_ARRAY_BUFFER, GL_BUFFER_SIZE, &size);
 				glDrawElements(GL_TRIANGLES, size/sizeof(GLushort), GL_UNSIGNED_SHORT, 0);
 			}
