@@ -17,8 +17,6 @@
       wayland
       libGL
       libxkbcommon
-      reactphysics3d
-      bullet
       glslang
       zip
       gdb
