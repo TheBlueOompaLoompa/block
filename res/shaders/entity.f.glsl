@@ -14,8 +14,9 @@ void main(void) {
     FragColor = texture2D(mytexture, flipped);
 
     // Light color/angle brightness
-    FragColor *= apply_light(f_normal, time);
+    FragColor *= apply_light(f_normal);
 
     // Time of day brightness
     FragColor *= max(cos(time)/2.0+.5, .1);
+    FragColor = vec4(1.0, 0.0, 1.0, 1.0);
 }

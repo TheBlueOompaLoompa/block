@@ -22,8 +22,7 @@
 #define ATLAS_ROWS 2.0f
 
 
-/*
-* In Chunks
-*/
+#define CHUNK_SIZE 16
+// In chunks
 #define LOAD_DISTANCE 16
 #define WORLD_HEIGHT 16

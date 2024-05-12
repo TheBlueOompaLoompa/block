@@ -9,16 +9,16 @@
 #include "block.hpp"
 #include "config.hpp"
 
-bool safe_air_check(V3VECARRAY(Chunk*)* chunks_ref, glm::vec3 ray_pos) {
+bool safe_air_check(Chunk* (*chunks_ref)[LOAD_DISTANCE][WORLD_HEIGHT][LOAD_DISTANCE], glm::vec3 ray_pos) {
     int cx = (int)floor(ray_pos.x/16.0f);
     int cy = (int)floor(ray_pos.y/16.0f);
     int cz = (int)floor(ray_pos.z/16.0f);
 
-    V3VECARRAY(Chunk*)& chunks = *chunks_ref;
+    Chunk* (&chunks)[LOAD_DISTANCE][WORLD_HEIGHT][LOAD_DISTANCE] = *chunks_ref;
 
     if(
         !(cx >= 0 && cy >= 0 && cz >= 0 &&
-        cx < chunks.size() && cy < chunks[cx].size() && cz < chunks[cx][cy].size())
+        cx < LOAD_DISTANCE && cy < WORLD_HEIGHT && cz < LOAD_DISTANCE)
     ) {
         return true;
     }
@@ -32,7 +32,7 @@ bool safe_air_check(V3VECARRAY(Chunk*)* chunks_ref, glm::vec3 ray_pos) {
 }
 
 // Returns true when hit
-bool raycast(V3VECARRAY(Chunk*)* chunks_ref, glm::vec3* start_pos, glm::quat rot,
+bool raycast(Chunk* (*chunks_ref)[LOAD_DISTANCE][WORLD_HEIGHT][LOAD_DISTANCE], glm::vec3* start_pos, glm::quat rot,
 			glm::vec3* hit_pos = nullptr, float max_dist = 6.0f, float step = .05) {
     glm::vec3 ray_pos = (*start_pos);
     
@@ -51,7 +51,7 @@ bool raycast(V3VECARRAY(Chunk*)* chunks_ref, glm::vec3* start_pos, glm::quat rot
 }
 
 // Returns true when hit
-bool raycast(V3VECARRAY(Chunk*)* chunks_ref, glm::vec3* start_pos, glm::vec3 dir,
+bool raycast(Chunk* (*chunks_ref)[LOAD_DISTANCE][WORLD_HEIGHT][LOAD_DISTANCE], glm::vec3* start_pos, glm::vec3 dir,
 			glm::vec3* hit_pos = nullptr,float max_dist = 6.0f, float step = .05) {
 
     glm::vec3 ray_pos = (*start_pos);
@@ -70,7 +70,7 @@ bool raycast(V3VECARRAY(Chunk*)* chunks_ref, glm::vec3* start_pos, glm::vec3 dir
     return hit;
 }
 
-void process_entity_physics(Entity& entity, V3VECARRAY(Chunk*)* chunks, float dt) {
+void process_entity_physics(Entity& entity, Chunk* (&chunks)[LOAD_DISTANCE][WORLD_HEIGHT][LOAD_DISTANCE], float dt) {
 	entity.is_grounded = false;
 	
 	#define radius .18f
@@ -81,12 +81,12 @@ void process_entity_physics(Entity& entity, V3VECARRAY(Chunk*)* chunks, float dt
 			glm::vec3 ray_start = entity.position +
 				glm::vec3((float)x*(ground_radius*2.0f) - ground_radius, 0.0f, (float)y*(ground_radius*2.0f) - ground_radius);
 
-			if(raycast(chunks, &ray_start, glm::quat(glm::vec3(-M_PIf, 0.0f, 0.0f)), nullptr, .01f, .001f)) {
+			if(raycast(&chunks, &ray_start, glm::quat(glm::vec3(-M_PIf, 0.0f, 0.0f)), nullptr, .01f, .001f)) {
 				entity.is_grounded = true;
 			}
 
 			ray_start.y += PLAYER_HEIGHT;
-			bool hit_top = raycast(chunks, &ray_start, glm::quat(glm::vec3(M_PIf, 0.0f, 0.0f)), nullptr, .01f, .001f);
+			bool hit_top = raycast(&chunks, &ray_start, glm::quat(glm::vec3(M_PIf, 0.0f, 0.0f)), nullptr, .01f, .001f);
 			if(hit_top) { entity.velocity.y = std::min(entity.velocity.y, 0.0f); }
 		}		
 	}
@@ -100,10 +100,10 @@ void process_entity_physics(Entity& entity, V3VECARRAY(Chunk*)* chunks, float dt
 	check_pos.y += 0.1f;
 
 	for(float i = 0; i < PLAYER_HEIGHT; i++) {
-		bool hit_pos_z = raycast(chunks, &check_pos, glm::quat(glm::vec3(0.0f, 0.0f, 0.0f)), nullptr, radius, .001f);
-		bool hit_pos_x = raycast(chunks, &check_pos, glm::quat(glm::vec3(0.0f, M_PIf/2.0f, 0.0f)), nullptr, radius, .001f);
-		bool hit_neg_z = raycast(chunks, &check_pos, glm::quat(glm::vec3(0.0f, M_PIf, 0.0f)), nullptr, radius, .001f);
-		bool hit_neg_x = raycast(chunks, &check_pos, glm::quat(glm::vec3(0.0f, -M_PIf/2.0f, 0.0f)), nullptr, radius, .001f);
+		bool hit_pos_z = raycast(&chunks, &check_pos, glm::quat(glm::vec3(0.0f, 0.0f, 0.0f)), nullptr, radius, .001f);
+		bool hit_pos_x = raycast(&chunks, &check_pos, glm::quat(glm::vec3(0.0f, M_PIf/2.0f, 0.0f)), nullptr, radius, .001f);
+		bool hit_neg_z = raycast(&chunks, &check_pos, glm::quat(glm::vec3(0.0f, M_PIf, 0.0f)), nullptr, radius, .001f);
+		bool hit_neg_x = raycast(&chunks, &check_pos, glm::quat(glm::vec3(0.0f, -M_PIf/2.0f, 0.0f)), nullptr, radius, .001f);
 
 		if(hit_pos_x) entity.velocity.x = std::min(entity.velocity.x, 0.0f);
 		if(hit_pos_z) entity.velocity.z = std::max(entity.velocity.z, 0.0f);

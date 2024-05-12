@@ -2,6 +2,9 @@ cmake_minimum_required(VERSION 3.15)
 
 project(Block)
 
+# For LSP 
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 file(COPY res DESTINATION .)
 
 set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++20 -lGL -lSDL2_image -lSDL2_ttf -ldl -O2 -g")
@@ -37,6 +40,7 @@ target_link_libraries(mblock ${SDL2_LIBRARIES} ${SDL2IMAGE_LIBRARY} ${SDL2TTF_LI
 
 target_include_directories(mblock PUBLIC ${PROJECT_SOURCE_DIR}/include)
 target_include_directories(mblock PRIVATE lib/imgui)
+target_include_directories(mblock PRIVATE ${GL_INCLUDE_DIRS})
 
 add_custom_command(
     TARGET mblock

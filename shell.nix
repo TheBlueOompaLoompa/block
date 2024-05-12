@@ -24,5 +24,7 @@
       libwebp
       glib
       pcre2
+      clang-tools
+      clang
     ];
 }

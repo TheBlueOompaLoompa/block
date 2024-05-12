@@ -1,6 +1,7 @@
 #pragma once
 #include "FastNoiseLite.h"
 #include "block.hpp"
+#include "config.hpp"
 
 #define RESCALE(x) (std::max(std::min(x, 1.0f), -1.0f) + 1.0f) / 2.0f
 
@@ -47,4 +48,30 @@ BlockType cave_gen(float x, float y, float z) {
     }
 
     return block;
+}
+
+BlockType generate_block(float cx, float cy, float cz, float bx, float by, float bz) {
+    #define MAKE_WORLD(cx, bx) cx * CHUNK_SIZE + bx
+    #define HEIGHT_OFFSET(x, offset) x + (offset)/(float)(CHUNK_SIZE * WORLD_HEIGHT)
+
+    float x = MAKE_WORLD(cx, bx);
+    float y = MAKE_WORLD(cy, by);
+    float z = MAKE_WORLD(cz, bz);
+
+    float height = height_at_pos(x, z);
+
+    float relative_y = (float)(cy * CHUNK_SIZE + by) / (float)(CHUNK_SIZE * WORLD_HEIGHT);
+    BlockType new_type = BlockType::AIR;
+
+    if(HEIGHT_OFFSET(height, -10.0) > relative_y) {
+        new_type = cave_gen(x, y, z);
+    }else if(HEIGHT_OFFSET(height, -3.0) > relative_y) {
+        new_type = BlockType::STONE;
+    }else if(height > relative_y) {
+        new_type = BlockType::DIRT;
+    } else if(HEIGHT_OFFSET(height, 1.0f) > relative_y) {
+        new_type = BlockType::GRASS;
+    }
+
+    return new_type;
 }

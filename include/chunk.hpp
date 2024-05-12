@@ -5,11 +5,11 @@
 #include <glm/glm.hpp>
 #include <sys/stat.h>
 
+#include "worldgen.hpp"
 #include "block.hpp"
 #include "geometry.hpp"
 #include "helper.hpp"
-
-#define CHUNK_SIZE 16
+#include "mesh/mesh.hpp"
 
 struct ChunkSaveData {
     Block blocks[CHUNK_SIZE][CHUNK_SIZE][CHUNK_SIZE];
@@ -22,23 +22,31 @@ struct Chunk {
 
     bool changed = false;
 
-    GLuint vbo_vertices;
-    GLuint nbo_normals;
-    GLuint ibo_elements;
-
-    std::vector<Vertex> vertices;
-    std::vector<glm::vec3> normals;
-    std::vector<GLushort> indices;
+    Mesh mesh;
 
     Chunk* adjacent_chunks[6]; // up down left right forward back
 
+
+    void generate_chunk() {
+        destroy();
+
+        for(int bx = 0; bx < CHUNK_SIZE; bx++) {
+            for(int bz = 0; bz < CHUNK_SIZE; bz++) {
+                for(int by = 0; by < CHUNK_SIZE; by++) {
+                    blocks[bx][by][bz].type =
+                        generate_block(position.x, position.y, position.z, bx, by, bz);
+                }
+            }
+        }
+    }
+    
     // TODO: Hippo optimize mesh
     // Hungry hungry hippos baybee
     void hippo() {
 
     }
 
-    void update_area(V3VECARRAY(Chunk*)& chunks) {
+    void update_area(Chunk* (&chunks)[LOAD_DISTANCE][WORLD_HEIGHT][LOAD_DISTANCE]) {
         update_mesh();
         if(position.x > 0) chunks[position.x - 1][position.y][position.z]->update_mesh();
         if(position.y > 0) chunks[position.x][position.y - 1][position.z]->update_mesh();
@@ -49,9 +57,7 @@ struct Chunk {
     }
 
     void update_mesh() {
-        vertices.clear();
-        normals.clear();
-        indices.clear();
+        mesh.clear();
         for(int my = 0; my < CHUNK_SIZE; my++) {
             for(int mz = 0; mz < CHUNK_SIZE; mz++) {
                 for(int mx = 0; mx < CHUNK_SIZE; mx++) {
@@ -69,24 +75,11 @@ struct Chunk {
             }
         }
 
-        for(uint i = 0; i < vertices.size(); i++) {
-            vertices[i].pos += glm::vec3(position.x, position.y, position.z) * glm::vec3(CHUNK_SIZE);
+        for(uint i = 0; i < mesh.vertices.size(); i++) {
+            mesh.vertices[i].pos += glm::vec3(position.x, position.y, position.z) * glm::vec3(CHUNK_SIZE);
         }
 
-        glDeleteBuffers(1, &vbo_vertices);
-        glGenBuffers(1, &vbo_vertices);
-        glBindBuffer(GL_ARRAY_BUFFER, vbo_vertices);
-        glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(Vertex), vertices.data(), GL_STATIC_DRAW);
-
-        glDeleteBuffers(1, &nbo_normals);
-        glGenBuffers(1, &nbo_normals);
-        glBindBuffer(GL_ARRAY_BUFFER, nbo_normals);
-        glBufferData(GL_ARRAY_BUFFER, normals.size() * sizeof(glm::vec3), normals.data(), GL_STATIC_DRAW);
-
-        glDeleteBuffers(1, &ibo_elements);
-        glGenBuffers(1, &ibo_elements);
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo_elements);
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(GLushort), indices.data(), GL_STATIC_DRAW);
+        mesh.new_gl_buffers();
     }
 
     // Returns true if opaque block is at pos
@@ -133,10 +126,10 @@ struct Chunk {
         normal *= !chkFlip ? -1 : 1;
 
         glm::vec3 surface_normal = normal;
-        normals.push_back(surface_normal);
-        normals.push_back(surface_normal);
-        normals.push_back(surface_normal);
-        normals.push_back(surface_normal);
+        mesh.normals.push_back(surface_normal);
+        mesh.normals.push_back(surface_normal);
+        mesh.normals.push_back(surface_normal);
+        mesh.normals.push_back(surface_normal);
 
         bool flip_y = false;
         bool flip_x = false;
@@ -150,39 +143,39 @@ struct Chunk {
         // Subtract one because of air
         float atlas_offset = (float)block_type - 1;
 
-        vertices.push_back({
+        mesh.vertices.push_back({
             pos: glm::vec3((float)sx, (float)sy, (float)sz),
             uv: glm::vec2((flip_y ? 1.0f : 0.0f) / ATLAS_ROWS + (ATLAS_ROWS - 1.0) / ATLAS_ROWS, ((flip_x ? 1.0f : 0.0f) + atlas_offset) / ATLAS_COLS)
         });
-        vertices.push_back({
+        mesh.vertices.push_back({
             pos: glm::vec3((float)(sx + right.x), (float)(sy + right.y), (float)(sz + right.z)),
             uv: glm::vec2((flip_y ? 0.0f : 1.0f) / ATLAS_ROWS + (ATLAS_ROWS - 1.0) / ATLAS_ROWS, ((flip_x ? 1.0f : 0.0f) + atlas_offset) / ATLAS_COLS)
         });
-        vertices.push_back({
+        mesh.vertices.push_back({
             pos: glm::vec3((float)(sx + right.x + up.x), (float)(sy + right.y + up.y), (float)(sz + right.z + up.z)),
             uv: glm::vec2((flip_y ? 0.0f : 1.0f) / ATLAS_ROWS + (ATLAS_ROWS - 1.0) / ATLAS_ROWS, ((flip_x ? 0.0f : 1.0f) + atlas_offset) / ATLAS_COLS)
         });
-        vertices.push_back({
+        mesh.vertices.push_back({
             pos: glm::vec3((float)(sx + up.x), (float)(sy + up.y), (float)(sz + up.z)),
             uv: glm::vec2((flip_y ? 1.0f : 0.0f) / ATLAS_ROWS + (ATLAS_ROWS - 1.0) / ATLAS_ROWS, ((flip_x ? 0.0f : 1.0f) + atlas_offset) / ATLAS_COLS)
         });
 
         if(flip) {
-            indices.push_back(vertices.size() - 4);
-            indices.push_back(vertices.size() - 3);
-            indices.push_back(vertices.size() - 2);
+            mesh.indices.push_back(mesh.vertices.size() - 4);
+            mesh.indices.push_back(mesh.vertices.size() - 3);
+            mesh.indices.push_back(mesh.vertices.size() - 2);
 
-            indices.push_back(vertices.size() - 4);
-            indices.push_back(vertices.size() - 2);
-            indices.push_back(vertices.size() - 1);
+            mesh.indices.push_back(mesh.vertices.size() - 4);
+            mesh.indices.push_back(mesh.vertices.size() - 2);
+            mesh.indices.push_back(mesh.vertices.size() - 1);
         } else {
-            indices.push_back(vertices.size() - 2);
-            indices.push_back(vertices.size() - 3);
-            indices.push_back(vertices.size() - 4);
+            mesh.indices.push_back(mesh.vertices.size() - 2);
+            mesh.indices.push_back(mesh.vertices.size() - 3);
+            mesh.indices.push_back(mesh.vertices.size() - 4);
 
-            indices.push_back(vertices.size() - 1);
-            indices.push_back(vertices.size() - 2);
-            indices.push_back(vertices.size() - 4);
+            mesh.indices.push_back(mesh.vertices.size() - 1);
+            mesh.indices.push_back(mesh.vertices.size() - 2);
+            mesh.indices.push_back(mesh.vertices.size() - 4);
         }
     }
 
@@ -219,11 +212,38 @@ struct Chunk {
     }
 
     void destroy() {
-        glDeleteBuffers(1, &vbo_vertices);
-        glDeleteBuffers(1, &nbo_normals);
-        glDeleteBuffers(1, &ibo_elements);
-        vertices.clear();
-        normals.clear();
-        indices.clear();
+        glDeleteBuffers(1, &mesh.vbo_vertices);
+        glDeleteBuffers(1, &mesh.vbo_normals);
+        glDeleteBuffers(1, &mesh.ibo_elements);
+        mesh.vertices.clear();
+        mesh.normals.clear();
+        mesh.indices.clear();
     }
 };
+
+void move_chunks(Chunk* (&chunks)[LOAD_DISTANCE][WORLD_HEIGHT][LOAD_DISTANCE], bool xz, bool flip) {
+    Chunk* wall_chunks[LOAD_DISTANCE][WORLD_HEIGHT];
+
+    // TODO: Implement x-axis
+    if(!xz) { // X axis
+        
+    }else { // Z axis
+        // Save
+        memcpy(wall_chunks, chunks[flip ? LOAD_DISTANCE - 1 : 0], sizeof(int*) * LOAD_DISTANCE * WORLD_HEIGHT);
+
+        /*if(flip) {
+            memmove(chunks[1], wall_chunks[0], sizeof(int*) * LOAD_DISTANCE * WORLD_HEIGHT * (LOAD_DISTANCE - 1));
+        }else {
+            memmove(chunks[0], &wall_chunks[1], sizeof(int*) * LOAD_DISTANCE * WORLD_HEIGHT * (LOAD_DISTANCE - 1));
+        }*/
+
+        // Load
+        memcpy(wall_chunks, chunks[!flip ? LOAD_DISTANCE - 1 : 0], sizeof(int*) * LOAD_DISTANCE * WORLD_HEIGHT);
+        for(int x = 0; x < LOAD_DISTANCE; x++) {
+            for(int y = 0; y < WORLD_HEIGHT; y++) {
+                wall_chunks[x][y]->position = glm::ivec3(x, y, 0.0f);
+                wall_chunks[x][y]->generate_chunk();
+            }
+        }
+    }
+}

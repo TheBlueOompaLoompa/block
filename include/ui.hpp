@@ -137,7 +137,7 @@ bool render_ui(UIData* ui, Preferences *prefs) {
         ImGui::Text("Use mouse to look, left click to break, and right click to place.");
 
         ImGui::SetCursorPos(ImVec2(ImGui::GetWindowWidth()/2 - 8, ImGui::GetWindowHeight()/2 - 8));
-        ImGui::Image((void*)*ui->res.atlas, ImVec2(16.0, 16.0), ImVec2(0.0, .5f), ImVec2(1/ATLAS_COLS, 1.0));
+        ImGui::Image((void*)(uintptr_t)*ui->res.atlas, ImVec2(16.0, 16.0), ImVec2(0.0, .5f), ImVec2(1/ATLAS_COLS, 1.0));
 
         ImGui::End();
     }else {
@@ -192,7 +192,6 @@ bool render_ui(UIData* ui, Preferences *prefs) {
             if(ImGui::Button("Create")) {
                 ui->state.save_folder = "worlds/";
                 ui->state.save_folder.concat(ui->state.new_save_name);
-                printf("%s\n", ui->state.save_folder);
 
                 assert(ui->setup_func != nullptr);
                 ui->setup_func();

@@ -70,5 +70,5 @@
         "variant": "cpp",
         "filesystem": "cpp"
     },
-    "C_Cpp.default.compilerPath": "/nix/store/ihhhd1r1a2wb4ndm24rnm83rfnjw5n0z-gcc-wrapper-12.3.0/bin/g++"
+    "C_Cpp.default.compilerPath": "/nix/store/8mjb3ziimfi3rki71q4s0916xkm4cm5p-gcc-wrapper-13.2.0/bin/g++"
 }

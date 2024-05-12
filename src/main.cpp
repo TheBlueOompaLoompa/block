@@ -9,6 +9,7 @@ LOOK with your mouse
 #include <iostream>
 #include <vector>
 #include <math.h>
+#include <map>
 
 // Backend
 #include <GL/glew.h>
@@ -32,21 +33,20 @@ LOOK with your mouse
 #include "helper.hpp"
 #include "ui.hpp"
 #include "entity.hpp"
-#include "worldgen.hpp"
 #include "preferences.hpp"
 #include "physics.hpp"
 #include "save.hpp"
 
 using namespace std;
 
-GLuint program;
-GLuint texture_atlas_id, program_id;
+Shader* shader;
+GLuint texture_atlas_id;
 GLint uniform_mytexture;
 GLuint attribute_coord3d, attribute_texcoord, attribute_normal;
 GLint uniform_mvp;
 GLint uniform_time;
 
-vector<vector<vector<Chunk*>>> chunks;
+Chunk* chunks[LOAD_DISTANCE][WORLD_HEIGHT][LOAD_DISTANCE];
 vector<Entity> entities;
 
 UIData ui;
@@ -58,11 +58,16 @@ glm::vec3 offset = glm::vec3(0.0f);
 glm::vec3 vel;
 glm::vec2 look_dir;
 
+Mesh mesh;
+
 bool init_resources(SDL_Renderer* renderer) {
+	mesh.load_obj("res/models/Test Mesh.obj");
+	mesh.new_gl_buffers();
+	
 	if (TTF_Init() < 0) {
-			fprintf(stderr, "Couldn't initialize TTF: %s\n",SDL_GetError());
-			return false;
-		}
+		fprintf(stderr, "Couldn't initialize TTF: %s\n",SDL_GetError());
+		return false;
+	}
 
 	SDL_Surface* res_texture = IMG_Load("res/textures/atlas.png");
 	if (res_texture == NULL) {
@@ -87,25 +92,26 @@ bool init_resources(SDL_Renderer* renderer) {
 		res_texture->pixels);
 	SDL_FreeSurface(res_texture);
 
-	program = create_program("res/shaders/cube.v.glsl", "res/shaders/cube.f.glsl");
-	if(program == 0) { return false; }
+	shader = new Shader("res/shaders/cube");
+	//program = create_program("res/shaders/cube.v.glsl", "res/shaders/cube.f.glsl");
+	if(shader->get_program_id() == 0) { return false; }
 	
 	if(
-		!bind_attrib(&attribute_coord3d, program, "coord3d") ||
-		!bind_attrib(&attribute_texcoord, program, "texcoord") ||
-		!bind_attrib(&attribute_normal, program, "normal")
+		!shader->bind_attrib("coord3d") ||
+		!shader->bind_attrib("texcoord") ||
+		!shader->bind_attrib("normal")
 	) { return false; }
 
 	const char* uniform_name;
 	uniform_name = "mvp";
-	uniform_mvp = glGetUniformLocation(program, uniform_name);
+	uniform_mvp = glGetUniformLocation(shader->get_program_id(), uniform_name);
 	if (uniform_mvp == -1) {
 		cerr << "Could not bind uniform " << uniform_name << endl;
 		return false;
 	}
 
 	uniform_name = "time";
-	uniform_time = glGetUniformLocation(program, uniform_name);
+	uniform_time = glGetUniformLocation(shader->get_program_id(), uniform_name);
 	if (uniform_time == -1) {
 		cerr << "Could not bind uniform " << uniform_name << endl;
 		return false;
@@ -127,7 +133,7 @@ void setup() {
 
 	if(ui.state.create_menu) {
 		world_seed = ui.state.new_world_seed;
-		chk_mkdir((char*)ui.state.save_folder.c_str());
+		chk_mkdir((const char*)ui.state.save_folder.c_str());
 	}else {
 		filesystem::path path = ui.state.save_folder;
 		path.concat("/world.bin");
@@ -140,9 +146,9 @@ void setup() {
 
 	// MARK: Chunk gen
 	
-	for(int cx = 0; cx < chunks.size(); cx++) {
-		for(int cy = 0; cy < chunks[cx].size(); cy++) {
-			for(int cz = 0; cz < chunks[cx][cy].size(); cz++) {
+	for(int cx = 0; cx < LOAD_DISTANCE; cx++) {
+		for(int cy = 0; cy < WORLD_HEIGHT; cy++) {
+			for(int cz = 0; cz < LOAD_DISTANCE; cz++) {
 				if(chunks[cx][cy][cz] != nullptr) {
 					chunks[cx][cy][cz]->destroy();
 					delete chunks[cx][cy][cz];
@@ -151,42 +157,16 @@ void setup() {
 		}
 	}
 
-	chunks = V3VECARRAY(Chunk*)(LOAD_DISTANCE);
 	for(int cx = 0; cx < LOAD_DISTANCE; cx++) {
-		chunks[cx] = vector<vector<Chunk*>>(WORLD_HEIGHT);
 		for(int cy = 0; cy < WORLD_HEIGHT; cy++) {
-			chunks[cx][cy] = vector<Chunk*>(LOAD_DISTANCE);
 			for(int cz = 0; cz < LOAD_DISTANCE; cz++) {
 				chunks[cx][cy][cz] = new Chunk();
 				chunks[cx][cy][cz]->position = glm::ivec3(cx, cy, cz);
 
 				chunks[cx][cy][cz]->load(ui.state.save_folder.c_str());
 
-				#define HEIGHT_OFFSET(x, offset) x + (offset)/(float)(CHUNK_SIZE * WORLD_HEIGHT)
-				#define MAKE_WORLD(cx, bx) cx * CHUNK_SIZE + bx
-
 				if(!chunks[cx][cy][cz]->changed) {
-					for(int bx = 0; bx < CHUNK_SIZE; bx++) {
-						for(int bz = 0; bz < CHUNK_SIZE; bz++) {
-							float height = height_at_pos(MAKE_WORLD(cx, bx), MAKE_WORLD(cz, bz));
-							for(int by = 0; by < CHUNK_SIZE; by++) {
-								float relative_y = (float)(cy * CHUNK_SIZE + by) / (float)(CHUNK_SIZE * WORLD_HEIGHT);
-								BlockType new_type = BlockType::AIR;
-
-								if(HEIGHT_OFFSET(height, -10.0) > relative_y) {
-									new_type = cave_gen(MAKE_WORLD(cx, bx), MAKE_WORLD(cy, by), MAKE_WORLD(cz, bz));
-								}else if(HEIGHT_OFFSET(height, -3.0) > relative_y) {
-									new_type = BlockType::STONE;
-								}else if(height > relative_y) {
-									new_type = BlockType::DIRT;
-								} else if(HEIGHT_OFFSET(height, 1.0f) > relative_y) {
-									new_type = BlockType::GRASS;
-								}
-
-								chunks[cx][cy][cz]->blocks[bx][by][bz].type = new_type;
-							}
-						}
-					}
+					chunks[cx][cy][cz]->generate_chunk();
 				}
 			}
 		}
@@ -348,7 +328,7 @@ void player_logic(Entity* player, float dt) {
 
 			chunks[cx][cy][cz]->changed = true;
 			
-			chunks[floor(hit_pos.x/CHUNK_SIZE)][floor(hit_pos.y/CHUNK_SIZE)][floor(hit_pos.z/CHUNK_SIZE)]->update_area(chunks);
+			chunks[(int)floor(hit_pos.x/CHUNK_SIZE)][(int)floor(hit_pos.y/CHUNK_SIZE)][(int)floor(hit_pos.z/CHUNK_SIZE)]->update_area(chunks);
 		}
 		ui.hit_pos = hit_pos;
 
@@ -380,7 +360,7 @@ void logic() {
 				break;
 		}
 
-		process_entity_physics(entity, &chunks, dt);
+		process_entity_physics(entity, chunks, dt);
 	}
 
 	ui.look_dir = look_dir;
@@ -410,7 +390,7 @@ void logic() {
 
 	glm::mat4 mvp = projection * view * model;
 
-	glUseProgram(program);
+	shader->use();
 	glUniformMatrix4fv(uniform_mvp, 1, GL_FALSE, glm::value_ptr(mvp));
 	glUniform1f(uniform_time, gt);
 }
@@ -418,43 +398,11 @@ void logic() {
 // MARK: Rendering
 
 void render_chunks(SDL_Renderer* renderer, SDL_Window* window) {
-	glUseProgram(program);
-
 	for(int x = 0; x < LOAD_DISTANCE; x++) {
 		for(int y = 0; y < WORLD_HEIGHT; y++) {
 			for(int z = 0; z < LOAD_DISTANCE; z++) {
-				glEnableVertexAttribArray(attribute_coord3d);
-				glBindBuffer(GL_ARRAY_BUFFER, chunks[x][y][z]->vbo_vertices);
-				glVertexAttribPointer(
-					attribute_coord3d,
-					3,
-					GL_FLOAT,
-					GL_FALSE,
-					sizeof(Vertex),
-					0 // offset of the first element
-				);
-
-				glEnableVertexAttribArray(attribute_texcoord);
-				glBindBuffer(GL_ARRAY_BUFFER, chunks[x][y][z]->vbo_vertices);
-				glVertexAttribPointer(
-					attribute_texcoord, // attribute
-					2,                  // number of elements per vertex, here (x,y)
-					GL_FLOAT,           // the type of each element
-					GL_FALSE,           // take our values as-is
-					sizeof(Vertex),                  // no extra data between each position
-					(GLvoid*) (3 * sizeof(GLfloat))                   // offset of first element
-				);
-
-				glEnableVertexAttribArray(attribute_normal);
-				glBindBuffer(GL_ARRAY_BUFFER, chunks[x][y][z]->nbo_normals);
-				glVertexAttribPointer(
-					attribute_normal,
-					3,
-					GL_FLOAT,
-					GL_FALSE,
-					sizeof(glm::vec3),
-					(GLvoid*) 0
-				);
+				chunks[x][y][z]->mesh.render();
+				shader->use(chunks[x][y][z]->mesh.vbo_vertices, chunks[x][y][z]->mesh.vbo_normals);
 
 
 				glActiveTexture(GL_TEXTURE0);
@@ -462,11 +410,62 @@ void render_chunks(SDL_Renderer* renderer, SDL_Window* window) {
 				glBindTexture(GL_TEXTURE_2D, texture_atlas_id);
 				
 				/* Push each element in buffer_vertices to the vertex shader */
-				glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, chunks[x][y][z]->ibo_elements);
+				glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, chunks[x][y][z]->mesh.ibo_elements);
 				int size;  glGetBufferParameteriv(GL_ELEMENT_ARRAY_BUFFER, GL_BUFFER_SIZE, &size);
 				glDrawElements(GL_TRIANGLES, size/sizeof(GLushort), GL_UNSIGNED_SHORT, 0);
 			}
 		}
+	}
+}
+
+void render_entities() {
+	for(auto& entity : entities) {
+		if(entity.is_owned && entity.type == EntityType::Player) continue;
+		shader->use();
+
+		// TODO: Create attributes for dummy model
+		glEnableVertexAttribArray(attribute_coord3d);
+		glBindBuffer(GL_ARRAY_BUFFER, {});
+		glVertexAttribPointer(
+			attribute_coord3d,
+			3,
+			GL_FLOAT,
+			GL_FALSE,
+			sizeof(Vertex),
+			0 // offset of the first element
+		);
+
+		glEnableVertexAttribArray(attribute_texcoord);
+		glBindBuffer(GL_ARRAY_BUFFER, {});
+		glVertexAttribPointer(
+			attribute_texcoord, // attribute
+			2,                  // number of elements per vertex, here (x,y)
+			GL_FLOAT,           // the type of each element
+			GL_FALSE,           // take our values as-is
+			sizeof(Vertex),                  // no extra data between each position
+			(GLvoid*) (3 * sizeof(GLfloat))                   // offset of first element
+		);
+
+		glEnableVertexAttribArray(attribute_normal);
+		glBindBuffer(GL_ARRAY_BUFFER, {});
+		glVertexAttribPointer(
+			attribute_normal,
+			3,
+			GL_FLOAT,
+			GL_FALSE,
+			sizeof(glm::vec3),
+			(GLvoid*) 0
+		);
+
+
+		glActiveTexture(GL_TEXTURE0);
+		glUniform1i(uniform_mytexture, /*GL_TEXTURE*/0);
+		glBindTexture(GL_TEXTURE_2D, texture_atlas_id);
+		
+		/* Push each element in buffer_vertices to the vertex shader */
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, {});
+		int size;  glGetBufferParameteriv(GL_ELEMENT_ARRAY_BUFFER, GL_BUFFER_SIZE, &size);
+		glDrawElements(GL_TRIANGLES, size/sizeof(GLushort), GL_UNSIGNED_SHORT, 0);
 	}
 }
 
@@ -495,7 +494,7 @@ void onResize(int width, int height) {
 
 
 void free_resources() {
-	glDeleteProgram(program);
+	shader->destroy();
 	glDeleteTextures(1, &texture_atlas_id);
 	
 	ImGui_ImplOpenGL3_Shutdown();
@@ -523,7 +522,10 @@ void check_input(SDL_Scancode code, bool val) {
 	}else {
 		switch(code) {
 			case SDL_SCANCODE_F3:
-				if(val) { ui.f3 = !ui.f3; }
+				if(val) {
+					ui.f3 = !ui.f3;
+					//move_chunks(chunks, true, false);
+				}
 				break;
 			default: break;
 		}

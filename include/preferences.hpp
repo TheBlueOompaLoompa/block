@@ -5,6 +5,8 @@
 
 #include "util.hpp"
 
+const char* PREFS_FILE = "prefs.bin";
+
 struct InputPreferences {
     SDL_Scancode forward = SDL_SCANCODE_W;
     SDL_Scancode backward = SDL_SCANCODE_S;
@@ -20,7 +22,6 @@ struct GraphicsPreferences {
     float fov = 90.0f;
 };
 
-#define PREFS_FILE "prefs.bin"
 struct Preferences {
     // UI
     bool fullscreen = false;
