@@ -6,10 +6,10 @@ LOOK with your mouse
 
 // Std
 #include <cstdlib>
+#include <glm/fwd.hpp>
 #include <iostream>
 #include <vector>
 #include <math.h>
-#include <map>
 
 // Backend
 #include <GL/glew.h>
@@ -52,7 +52,7 @@ vector<Entity> entities;
 UIData ui;
 
 Preferences prefs;
-WorldSaveData world_save;
+World world;
 
 glm::vec3 offset = glm::vec3(0.0f);
 glm::vec3 vel;
@@ -125,28 +125,35 @@ void apply_prefs(SDL_Window* window) {
 }
 
 void setup() {
-	world_save = {
+	world = {
 		.player_pos = glm::vec3(LOAD_DISTANCE*CHUNK_SIZE/2.0f, WORLD_HEIGHT*CHUNK_SIZE, LOAD_DISTANCE*CHUNK_SIZE/2.0f),
 		.look_dir = look_dir,
-		.seed = world_seed
+		.generation = {
+            .seed = 0
+        }
 	};
 
 	if(ui.state.create_menu) {
-		world_seed = ui.state.new_world_seed;
+		world.generation.seed = ui.state.new_world_seed;
 		chk_mkdir((const char*)ui.state.save_folder.c_str());
 	}else {
 		filesystem::path path = ui.state.save_folder;
 		path.concat("/world.bin");
 		if(std::filesystem::exists(path)) {
-			load_data((char*)path.c_str(), &world_save, sizeof(WorldSaveData));	
+			load_data((char*)path.c_str(), &world, sizeof(World));	
 		}
-
-		world_seed = world_save.seed;
 	}
 
 	// MARK: Chunk gen
 	
-	for(int cx = 0; cx < LOAD_DISTANCE; cx++) {
+    entities.clear();
+	entities.push_back({
+		EntityType::Player,
+		(char*)"Player",
+		world.player_pos,
+	});
+	
+    for(int cx = 0; cx < LOAD_DISTANCE; cx++) {
 		for(int cy = 0; cy < WORLD_HEIGHT; cy++) {
 			for(int cz = 0; cz < LOAD_DISTANCE; cz++) {
 				if(chunks[cx][cy][cz] != nullptr) {
@@ -157,16 +164,18 @@ void setup() {
 		}
 	}
 
+    glm::ivec3 chunk_offset = entities[0].position / glm::vec3(CHUNK_SIZE) - glm::vec3(LOAD_DISTANCE / 2, WORLD_HEIGHT / 2, LOAD_DISTANCE / 2);
+
 	for(int cx = 0; cx < LOAD_DISTANCE; cx++) {
 		for(int cy = 0; cy < WORLD_HEIGHT; cy++) {
 			for(int cz = 0; cz < LOAD_DISTANCE; cz++) {
 				chunks[cx][cy][cz] = new Chunk();
-				chunks[cx][cy][cz]->position = glm::ivec3(cx, cy, cz);
+				chunks[cx][cy][cz]->position = glm::ivec3(cx, cy, cz) + chunk_offset;
 
 				chunks[cx][cy][cz]->load(ui.state.save_folder.c_str());
 
 				if(!chunks[cx][cy][cz]->changed) {
-					chunks[cx][cy][cz]->generate_chunk();
+					chunks[cx][cy][cz]->generate_chunk(&world);
 				}
 			}
 		}
@@ -189,13 +198,6 @@ void setup() {
 		}
 	}
 
-	entities.clear();
-	entities.push_back({
-		type: EntityType::Player,
-		name: (char*)"Player",
-		position: world_save.player_pos,
-	});
-
 	if(ui.state.create_menu) {
 		glm::vec3 hit_pos;
 
@@ -213,13 +215,10 @@ void save() {
 
 	sprintf(save_bin_path, "%s/world.bin", ui.state.save_folder.c_str());
 
-	world_save = {
-		.player_pos = entities[0].position,
-		.look_dir = look_dir,
-		.seed = world_seed
-	};
+    world.player_pos = entities[0].position;
+    world.look_dir = look_dir;
 
-	save_data(save_bin_path, &world_save, sizeof(WorldSaveData));
+	save_data(save_bin_path, &world, sizeof(World));
 	free(save_bin_path);
 
 	for(int x = 0; x < LOAD_DISTANCE; x++) {
@@ -519,12 +518,13 @@ void check_input(SDL_Scancode code, bool val) {
 		m_space = val;
 	}else if(code >= SDL_SCANCODE_1 && code <= SDL_SCANCODE_4) {
 		block_place_type = (BlockType)(code - 29);
+        ui.hud.selected_block = block_place_type;
 	}else {
 		switch(code) {
 			case SDL_SCANCODE_F3:
 				if(val) {
 					ui.f3 = !ui.f3;
-					//move_chunks(chunks, true, false);
+					//move_chunks(&world, chunks, true, false);
 				}
 				break;
 			default: break;
@@ -671,14 +671,6 @@ int main(int argc, char* argv[]) {
 
 	chk_mkdir("worlds");
 
-	std::string world_list;
-
-	for(const auto& dir : filesystem::directory_iterator("worlds")) {
-		world_list.append(dir.path());
-		world_list.push_back('\0');
-	}
-
-	ui.save_folders = world_list.c_str();
 	ui.setup_func = setup;
 	ui.save_func = save;
 	reset_ui(&ui);

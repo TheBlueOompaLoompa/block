@@ -1,7 +1,13 @@
 #pragma once
 #include <SDL2/SDL_ttf.h>
+#include <cstdlib>
+#include <cstring>
+#include <filesystem>
 #include <glm/glm.hpp>
+#include <GL/gl.h>
+#include <magic_enum.hpp>
 
+#include "block.hpp"
 #include "imgui.h"
 #include "helper.hpp"
 #include "preferences.hpp"
@@ -17,6 +23,10 @@ struct UIState {
     char new_save_name[50];
     int new_world_seed;
     std::filesystem::path save_folder;
+};
+
+struct HUDInfo {
+    BlockType selected_block = BlockType::DIRT;
 };
 
 struct UIData {
@@ -40,6 +50,7 @@ struct UIData {
     void (*save_func)();
 
     UIState state;
+    HUDInfo hud;
     UIResources res;
 };
 
@@ -69,6 +80,34 @@ void reset_ui(UIData* ui) {
     ui->state.new_world_seed = rand();
     ui->state.save_combo = 0;
     ui->main_menu = true;
+
+	std::string world_list;
+
+	for(const auto& dir : std::filesystem::directory_iterator("worlds")) {
+		world_list.append(dir.path());
+		world_list.push_back('\0');
+	}
+
+    ui->save_folders = (const char*)malloc(world_list.length() + 1);
+    std::memcpy((void*)ui->save_folders, world_list.c_str(), world_list.length() + 1);
+}
+
+std::string combo2path(UIData* ui, int selected_item) {
+    // Consume name
+    int item = 0;
+    int idx = 0;
+    while(item < selected_item) {
+        if(ui->save_folders[idx] == '\0') item++;
+        idx++;
+    }
+
+    std::string path = "";
+    while(ui->save_folders[idx] != '\0') {
+        path.push_back(ui->save_folders[idx]);
+        idx++;
+    }
+
+    return path;
 }
 
 // Returns true if prefs changed
@@ -135,6 +174,7 @@ bool render_ui(UIData* ui, Preferences *prefs) {
         // Instructions
         ImGui::Text("Use W A S D to move and SPACE to jump");
         ImGui::Text("Use mouse to look, left click to break, and right click to place.");
+        ImGui::Text("%s", std::string(magic_enum::enum_name(ui->hud.selected_block)).c_str());
 
         ImGui::SetCursorPos(ImVec2(ImGui::GetWindowWidth()/2 - 8, ImGui::GetWindowHeight()/2 - 8));
         ImGui::Image((void*)(uintptr_t)*ui->res.atlas, ImVec2(16.0, 16.0), ImVec2(0.0, .5f), ImVec2(1/ATLAS_COLS, 1.0));
@@ -154,20 +194,7 @@ bool render_ui(UIData* ui, Preferences *prefs) {
             }
 
             if(ImGui::Button("Load Save")) {
-                // Consume name
-                int item = 0;
-                int idx = 0;
-                while(item < ui->state.save_combo) {
-                    if(ui->save_folders[idx] == '\0') item++;
-                    idx++;
-                }
-
-                std::string path = "";
-                while(ui->save_folders[idx] != '\0') {
-                    path.push_back(ui->save_folders[idx]);
-                    idx++;
-                }
-                ui->state.save_folder = path;
+                ui->state.save_folder = combo2path(ui, ui->state.save_combo);
 
                 assert(ui->setup_func != nullptr);
                 ui->setup_func();
@@ -177,6 +204,13 @@ bool render_ui(UIData* ui, Preferences *prefs) {
             if(ImGui::Combo("##saveselect", &ui->state.save_combo, ui->save_folders)) {
                 printf("Selected world %i\n", ui->state.save_combo);
             }
+            ImGui::SameLine();
+            if(ImGui::Button("Delete")) {
+                ui->state.save_folder = combo2path(ui, ui->state.save_combo);
+                std::filesystem::remove_all(ui->state.save_folder);
+                reset_ui(ui);
+            }
+
 
             if(ImGui::Button("Quit")) {
                 ui->quit = true;

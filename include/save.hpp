@@ -1,10 +1,11 @@
 #pragma once
+#include "worldgen.hpp"
 #include <glm/glm.hpp>
 
-struct WorldSaveData {
+struct World {
 	glm::vec3 player_pos;
 	glm::vec2 look_dir;
-	int seed;
+    WorldGeneration generation;
 };
 
 struct NewSaveData {
