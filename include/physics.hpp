@@ -1,10 +1,12 @@
 #pragma once
 
 #include <chunk.hpp>
+#include <cstdio>
 #include <vector>
 #include <glm/glm.hpp>
 #include <glm/gtx/quaternion.hpp>
 
+#include "entity.hpp"
 #include "helper.hpp"
 #include "block.hpp"
 #include "config.hpp"
@@ -16,11 +18,16 @@ bool safe_air_check(Chunk* (*chunks_ref)[LOAD_DISTANCE][WORLD_HEIGHT][LOAD_DISTA
 
     Chunk* (&chunks)[LOAD_DISTANCE][WORLD_HEIGHT][LOAD_DISTANCE] = *chunks_ref;
 
+	printf("Chek chunk %i %i %i \n", cx, cz, chunks[0][0][0]->position.x);
+    cx -= chunks[0][0][0]->position.x;
+    //cz -= chunks[0][0][0]->position.z;
+    //printf("Chek chunk %i %i \n", cx, cz);
+
     if(
         !(cx >= 0 && cy >= 0 && cz >= 0 &&
         cx < LOAD_DISTANCE && cy < WORLD_HEIGHT && cz < LOAD_DISTANCE)
     ) {
-        return true;
+        return false;
     }
 
 	int bx = ((int)floor(ray_pos.x))%16;

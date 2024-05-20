@@ -5,6 +5,7 @@ LOOK with your mouse
 
 
 // Std
+#include <cstdio>
 #include <cstdlib>
 #include <glm/fwd.hpp>
 #include <iostream>
@@ -124,9 +125,11 @@ void apply_prefs(SDL_Window* window) {
 	SDL_SetWindowFullscreen(window, prefs.fullscreen ? SDL_WINDOW_FULLSCREEN : 0);
 }
 
+glm::ivec3 chunk_offset = glm::ivec3(0);
+
 void setup() {
 	world = {
-		.player_pos = glm::vec3(LOAD_DISTANCE*CHUNK_SIZE/2.0f, WORLD_HEIGHT*CHUNK_SIZE, LOAD_DISTANCE*CHUNK_SIZE/2.0f),
+		.player_pos = glm::vec3(LOAD_DISTANCE*CHUNK_SIZE/2.0f, WORLD_HEIGHT*CHUNK_SIZE - 2.0f, LOAD_DISTANCE*CHUNK_SIZE/2.0f),
 		.look_dir = look_dir,
 		.generation = {
             .seed = 0
@@ -164,7 +167,9 @@ void setup() {
 		}
 	}
 
-    glm::ivec3 chunk_offset = entities[0].position / glm::vec3(CHUNK_SIZE) - glm::vec3(LOAD_DISTANCE / 2, WORLD_HEIGHT / 2, LOAD_DISTANCE / 2);
+    chunk_offset = glm::floor(entities[0].position / glm::vec3(CHUNK_SIZE) - glm::vec3(LOAD_DISTANCE / 2, 0, LOAD_DISTANCE / 2));
+    chunk_offset.y = 0;
+    printf("Chunk offset: %i %i %i\n", V3FMT(chunk_offset));
 
 	for(int cx = 0; cx < LOAD_DISTANCE; cx++) {
 		for(int cy = 0; cy < WORLD_HEIGHT; cy++) {
@@ -291,7 +296,7 @@ void player_logic(Entity* player, float dt) {
 			int bz = BPOS(hit_pos.z);
 
 			if(m_click_lr) {
-				chunks[cx][cy][cz]
+				chunks[cx - chunk_offset.x][cy][cz - chunk_offset.z]
 					->blocks[bx][by][bz].type = BlockType::AIR;
 			}else {
 				glm::vec3 block_hit = glm::vec3(fmodf(hit_pos.x, CHUNK_SIZE), fmodf(hit_pos.y, CHUNK_SIZE), fmodf(hit_pos.z, CHUNK_SIZE));
@@ -325,9 +330,10 @@ void player_logic(Entity* player, float dt) {
 					->blocks[nbx][nby][nbz].type = block_place_type;
 			}
 
-			chunks[cx][cy][cz]->changed = true;
+			chunks[cx - chunk_offset.x][cy][cz - chunk_offset.z]->changed = true;
+			printf("%i %i %i\n", (int)floor(hit_pos.x/CHUNK_SIZE) - chunk_offset.x, (int)floor(hit_pos.y/CHUNK_SIZE), (int)floor(hit_pos.z/CHUNK_SIZE) - chunk_offset.z);
 			
-			chunks[(int)floor(hit_pos.x/CHUNK_SIZE)][(int)floor(hit_pos.y/CHUNK_SIZE)][(int)floor(hit_pos.z/CHUNK_SIZE)]->update_area(chunks);
+			chunks[(int)floor(hit_pos.x/CHUNK_SIZE) - chunk_offset.x][(int)floor(hit_pos.y/CHUNK_SIZE)][(int)floor(hit_pos.z/CHUNK_SIZE) - chunk_offset.z]->update_area(chunks);
 		}
 		ui.hit_pos = hit_pos;
 
@@ -372,7 +378,7 @@ void logic() {
 	glm::vec3 axis_y(0, 1, 0);
 	//glm::mat4 anim = glm::rotate(glm::mat4(1.0f), glm::radians(angle), axis_y);
 	
-	glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(0, -PLAYER_HEIGHT + .5f, 0));
+	glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(0, -PLAYER_HEIGHT + .5f, 0) + (glm::vec3(chunk_offset) * glm::vec3(CHUNK_SIZE)));
 	glm::mat4 view = glm::translate(glm::mat4(1.0), glm::vec3(0.0));
 
 	glm::quat pitch = glm::angleAxis(look_dir.y, V3RIGHT);

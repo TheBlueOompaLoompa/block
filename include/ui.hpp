@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
+#include <glm/fwd.hpp>
 #include <glm/glm.hpp>
 #include <GL/gl.h>
 #include <magic_enum.hpp>
@@ -36,6 +37,7 @@ struct UIData {
     bool quit = false;
 
     glm::vec3 pos;
+    glm::ivec3 chunk;
     glm::vec3 vel;
     glm::vec2 look_dir;
 
@@ -126,6 +128,8 @@ bool render_ui(UIData* ui, Preferences *prefs) {
                 ImGuiWindowFlags_NoInputs);
             ImGui::SetWindowFontScale(1.5f);
             ImGui::Text("Position\nX %f\nY %f\nZ %f", V3FMT(ui->pos));
+            glm::ivec3 chunk = glm::ivec3(glm::floor(ui->pos)) / glm::ivec3(CHUNK_SIZE);
+            ImGui::Text("Chunk %i %i %i", V3FMT(chunk));
             ImGui::Text("Hit Pos\nX %f\nY %f\nZ %f", V3FMT(ui->hit_pos));
             ImGui::Text("Velocity X %f Y %f Z %f", V3FMT(ui->vel));
             ImGui::Text("Look dir X %f Y %f", V2FMT(ui->look_dir));
